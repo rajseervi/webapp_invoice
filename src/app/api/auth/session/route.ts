@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 
 export async function POST(request: NextRequest) {
   try {
-    const { token, role, expiresIn } = await request.json();
+    const { token, role, status, subscriptionActive, expiresIn } = await request.json();
     
     if (!token) {
       return NextResponse.json(
@@ -12,8 +12,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get the cookies instance
+    const cookieStore = cookies();
+    
     // Set the session cookie
-    cookies().set({
+    await cookieStore.set({
       name: 'session',
       value: token,
       httpOnly: true,
@@ -25,10 +28,36 @@ export async function POST(request: NextRequest) {
 
     // Set the user role cookie
     if (role) {
-      cookies().set({
+      await cookieStore.set({
         name: 'userRole',
         value: role,
-        httpOnly: true,
+        httpOnly: false, // Allow JavaScript access to this cookie
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: expiresIn || 60 * 60 * 24 * 5, // 5 days by default
+        path: '/',
+      });
+    }
+
+    // Set the user status cookie
+    if (status) {
+      await cookieStore.set({
+        name: 'userStatus',
+        value: status,
+        httpOnly: false, // Allow JavaScript access to this cookie
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: expiresIn || 60 * 60 * 24 * 5, // 5 days by default
+        path: '/',
+      });
+    }
+
+    // Set the subscription status cookie
+    if (subscriptionActive !== undefined) {
+      await cookieStore.set({
+        name: 'subscriptionActive',
+        value: subscriptionActive.toString(),
+        httpOnly: false, // Allow JavaScript access to this cookie
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         maxAge: expiresIn || 60 * 60 * 24 * 5, // 5 days by default
@@ -47,9 +76,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE() {
-  // Clear the session cookie
-  cookies().delete('session');
-  cookies().delete('userRole');
+  // Clear the session cookies
+  const cookieStore = cookies();
+  await cookieStore.delete('session');
+  await cookieStore.delete('userRole');
+  await cookieStore.delete('userStatus');
+  await cookieStore.delete('subscriptionActive');
   
   return NextResponse.json({ success: true });
 }

@@ -28,7 +28,8 @@ import {
   StepLabel,
   Snackbar,
   Chip,
-  Divider
+  Divider,
+  Tooltip
 } from '@mui/material';
 import { 
   Delete as DeleteIcon, 
@@ -40,13 +41,16 @@ import {
   Person as PersonIcon,
   ShoppingCart as ShoppingCartIcon,
   Summarize as SummarizeIcon,
-  CheckCircle as CheckCircleIcon
+  CheckCircle as CheckCircleIcon,
+  Percent as PercentIcon
 } from '@mui/icons-material';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, orderBy, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { executeWithRetry, getFirestoreErrorMessage } from '@/utils/firestoreHelpers';
 import { useParties } from "@/app/hooks/useParties";
 import { useProducts } from '@/app/hooks/useProducts';
+import CategoryDiscountEditor from '@/components/invoices/CategoryDiscountEditor';
+import LineItemDiscountEditor from '@/components/invoices/LineItemDiscountEditor';
 import { 
   Dialog, 
   DialogTitle, 
@@ -72,7 +76,7 @@ interface InvoiceLineItem {
   price: number;
   category: string;
   discount: number;
-  discountType: 'none' | 'category' | 'product';
+  discountType: 'none' | 'category' | 'product' | 'custom';
   finalPrice: number;
 }
 
@@ -144,6 +148,9 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
     productDiscounts: {} as Record<string, number>
   });
   const [creatingParty, setCreatingParty] = useState(false);
+  
+  // Category discount editor
+  const [openCategoryDiscountEditor, setOpenCategoryDiscountEditor] = useState(false);
 
   // Fetch existing invoice data if editing
   useEffect(() => {
@@ -186,7 +193,17 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
             } else if (party) {
               // Check for product-specific discount first
               const productDiscount = party.productDiscounts?.[item.productId] || 0;
-              const categoryDiscount = party.categoryDiscounts[product?.category || ''] || 0;
+              
+              // Use category name to look up discount
+              const categoryName = product?.category || '';
+              const categoryDiscount = party.categoryDiscounts[categoryName] || 0;
+              
+              // Log for debugging
+              console.log(`Loading item ${item.name}:`, {
+                category: categoryName,
+                categoryDiscount,
+                productDiscount
+              });
               
               if (productDiscount > 0) {
                 discount = productDiscount;
@@ -287,14 +304,28 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
   const calculateItemDiscounts = (item: InvoiceLineItem, party: Party | null) => {
     if (!party) return item;
     
+    // If the item already has a custom discount, preserve it
+    if (item.discountType === 'custom') {
+      console.log('Preserving custom discount for item:', item.name, item.discount);
+      const finalPrice = item.price * (1 - item.discount/100) * item.quantity;
+      return {
+        ...item,
+        finalPrice: parseFloat(finalPrice.toFixed(2))
+      };
+    }
+    
     const product = products.find(p => p.id === item.productId);
     if (!product) return item;
     
+    // Use category name to look up discount
     const categoryDiscount = party.categoryDiscounts[product.category] || 0;
+    
+    // Log for debugging
+    console.log(`Looking up discount for category "${product.category}": ${categoryDiscount}%`);
     const productDiscount = party.productDiscounts?.[item.productId] || 0;
     
     let discount = 0;
-    let discountType: 'none' | 'category' | 'product' = 'none';
+    let discountType: 'none' | 'category' | 'product' | 'custom' = 'none';
     
     if (productDiscount > 0) {
       discount = productDiscount;
@@ -305,13 +336,25 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
     }
     
     const finalPrice = item.price * (1 - discount/100) * item.quantity;
-    
-    return { 
+    const result = { 
       ...item, 
       discount, 
       discountType,
       finalPrice: parseFloat(finalPrice.toFixed(2))
     };
+    
+    // Log for debugging
+    console.log('Calculated discount for item:', {
+      product: item.name,
+      category: item.category,
+      originalDiscount: item.discount,
+      originalType: item.discountType,
+      newDiscount: discount,
+      newType: discountType,
+      finalPrice: result.finalPrice
+    });
+    
+    return result;
   };
 
   // Update discounts when party changes
@@ -320,7 +363,7 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
     
     const updatedItems = lineItems.map(item => calculateItemDiscounts(item, selectedParty));
     setLineItems(updatedItems);
-  }, [selectedPartyId, products, selectedParty]);
+  }, [selectedPartyId, products, selectedParty]); // Don't include lineItems to avoid infinite loop
   
   const handleOpenPartyDialog = () => {
     setNewParty({
@@ -391,11 +434,16 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
     if (!product) return;
     
     let discount = 0;
-    let discountType: 'none' | 'category' | 'product' = 'none';
+    let discountType: 'none' | 'category' | 'product' | 'custom' = 'none';
     
     if (selectedParty) {
+      // Use category name to look up discount
       const categoryDiscount = selectedParty.categoryDiscounts[product.category] || 0;
       const productDiscount = selectedParty.productDiscounts?.[product.id] || 0;
+      
+      // Log for debugging
+      console.log(`Adding product "${product.name}" with category "${product.category}"`);
+      console.log(`Category discount: ${categoryDiscount}%, Product discount: ${productDiscount}%`);
       
       if (productDiscount > 0) {
         discount = productDiscount;
@@ -406,7 +454,8 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
       }
     }
     
-    const finalPrice = product.price * (1 - discount/100);
+    // Calculate the final price with discount and quantity
+    const finalPrice = parseFloat((product.price * (1 - discount/100) * 1).toFixed(2));
     
     let newItem: InvoiceLineItem = {
       productId: product.id,
@@ -414,32 +463,40 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
       quantity: 1, // Default to 1 instead of 0
       price: product.price,
       category: product.category || '',
-      discount: 0,
-      discountType: 'none',
-      finalPrice: product.price
+      discount: discount, // Apply the calculated discount
+      discountType: discountType, // Apply the calculated discount type
+      finalPrice: finalPrice
     };
     
-    // Calculate discounts for the new item if a party is selected
-    newItem = calculateItemDiscounts(newItem, selectedParty);
+    // Log for debugging
+    console.log('Adding product with discount:', {
+      product: product.name,
+      category: product.category,
+      discount,
+      discountType,
+      finalPrice
+    });
     
     setLineItems([...lineItems, newItem]);
     setSelectedProductId('');
     
-    // Focus on the quantity input of the newly added item
+    // Focus on the quantity input of the newly added item and select its content
     setTimeout(() => {
       if (quantityInputRef.current) {
         quantityInputRef.current.focus();
+        quantityInputRef.current.select(); // Select the content so it can be easily replaced
       }
-    }, 0);
+    }, 100); // Slightly longer timeout to ensure the DOM has updated
   };
   
   const handleUpdateQuantity = (index: number, quantity: number) => {
-    if (quantity < 1) return;
+    // Ensure quantity is at least 1
+    const validQuantity = Math.max(1, quantity);
     
     const updatedItems = lineItems.map((item, i) => {
       if (i !== index) return item;
       
-      const updatedItem = { ...item, quantity };
+      const updatedItem = { ...item, quantity: validQuantity };
       return calculateItemDiscounts(updatedItem, selectedParty);
     });
     
@@ -448,6 +505,84 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
   
   const handleRemoveItem = (index: number) => {
     setLineItems(lineItems.filter((_, i) => i !== index));
+  };
+  
+  // Handle updating category discounts
+  const handleUpdateCategoryDiscounts = (updatedDiscounts: Record<string, number>) => {
+    // Log the updated discounts
+    console.log('Updating category discounts:', updatedDiscounts);
+    
+    // Update the party's category discounts (temporary, for this invoice only)
+    if (selectedParty) {
+      const updatedParty = {
+        ...selectedParty,
+        categoryDiscounts: {
+          ...selectedParty.categoryDiscounts,
+          ...updatedDiscounts
+        }
+      };
+      
+      // Log the updated party
+      console.log('Updated party category discounts:', updatedParty.categoryDiscounts);
+      
+      // Find the party in the parties array and update it
+      const partyIndex = parties.findIndex(p => p.id === selectedParty.id);
+      if (partyIndex !== -1) {
+        parties[partyIndex] = updatedParty;
+      }
+      
+      // Recalculate discounts for all line items, preserving custom discounts
+      const updatedItems = lineItems.map(item => {
+        // Skip items with custom discounts
+        if (item.discountType === 'custom') {
+          return item;
+        }
+        
+        // For items with the category that was updated, apply the new discount
+        const product = products.find(p => p.id === item.productId);
+        if (product && updatedDiscounts.hasOwnProperty(product.category)) {
+          const newDiscount = updatedDiscounts[product.category];
+          const finalPrice = item.price * (1 - newDiscount/100) * item.quantity;
+          
+          return {
+            ...item,
+            discount: newDiscount,
+            discountType: 'category',
+            finalPrice: parseFloat(finalPrice.toFixed(2))
+          };
+        }
+        
+        // For other items, recalculate using the standard logic
+        return calculateItemDiscounts(item, updatedParty);
+      });
+      
+      setLineItems(updatedItems);
+      
+      // Show success message
+      setSuccessMessage('Category discounts updated successfully');
+    }
+  };
+  
+  // Handle updating a single line item's discount
+  const handleUpdateLineItemDiscount = (index: number, discount: number, discountType: 'none' | 'category' | 'product' | 'custom') => {
+    const updatedItems = [...lineItems];
+    const item = { ...updatedItems[index] };
+    
+    console.log('Updating line item discount:', {
+      product: item.name,
+      oldDiscount: item.discount,
+      oldType: item.discountType,
+      newDiscount: discount,
+      newType: discountType
+    });
+    
+    item.discount = discount;
+    item.discountType = discountType; // Keep the custom discount type
+    item.finalPrice = item.price * (1 - discount/100) * item.quantity;
+    item.finalPrice = parseFloat(item.finalPrice.toFixed(2));
+    
+    updatedItems[index] = item;
+    setLineItems(updatedItems);
   };
   
   const subtotal = lineItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -476,11 +611,13 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
           price: item.price,
           discount: item.discount,
           discountType: item.discountType,
-          finalPrice: item.finalPrice
+          finalPrice: item.finalPrice,
+          category: item.category
         })),
         subtotal,
         discount: discountAmount,
         total,
+        categoryDiscounts: selectedParty?.categoryDiscounts || {},
         updatedAt: serverTimestamp()
       };
 
@@ -710,6 +847,17 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
                           />
                         )
                       ))}
+                      
+                      <Button 
+                        size="small" 
+                        variant="outlined" 
+                        color="primary" 
+                        startIcon={<PercentIcon />}
+                        onClick={() => setOpenCategoryDiscountEditor(true)}
+                        sx={{ mt: 1 }}
+                      >
+                        Edit Category Discounts
+                      </Button>
                     </Box>
                   </Box>
                 )}
@@ -817,34 +965,41 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
                           type="number"
                           size="small"
                           value={item.quantity}
-                          onChange={(e) => handleUpdateQuantity(index, parseInt(e.target.value))}
+                          onChange={(e) => handleUpdateQuantity(index, parseInt(e.target.value) || 1)}
+                          onFocus={(e) => e.target.select()} // Select all text when focused
                           inputProps={{ min: 1 }}
                           sx={{ width: { xs: '60px', sm: '70px' } }}
                           inputRef={index === lineItems.length - 1 ? quantityInputRef : null}
                         />
                       </TableCell>
                       <TableCell align="right">
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
-                          <TextField
-                            type="number"
-                            size="small"
-                            value={item.discount}
-                            onChange={(e) => {
-                              const updatedItems = [...lineItems];
-                              const updatedItem = updatedItems[index];
-                              updatedItem.discount = parseFloat(e.target.value) || 0;
-                              updatedItem.discountType = 'none';
-                              updatedItem.finalPrice = updatedItem.price * (1 - updatedItem.discount/100) * updatedItem.quantity;
-                              updatedItem.finalPrice = parseFloat(updatedItem.finalPrice.toFixed(2));
-                              setLineItems(updatedItems);
-                            }}
-                            inputProps={{ min: 0, max: 100, step: 0.1 }}
-                            sx={{ width: '80px' }}
-                          />
-                          <Typography variant="body2" color="text.secondary">
-                            %{item.discountType !== 'none' && ` (${item.discountType})`}
-                          </Typography>
-                        </Box>
+                        {(() => {
+                          const product = products.find(p => p.id === item.productId);
+                          const categoryName = product?.category || '';
+                          const categoryDiscount = selectedParty?.categoryDiscounts[categoryName] || 0;
+                          const productDiscount = selectedParty?.productDiscounts?.[item.productId] || 0;
+                          
+                          // Log for debugging
+                          console.log(`Line item ${index} - ${item.name}:`, {
+                            category: categoryName,
+                            categoryDiscount,
+                            productDiscount,
+                            currentDiscount: item.discount,
+                            currentType: item.discountType
+                          });
+                          
+                          return (
+                            <LineItemDiscountEditor
+                              discount={item.discount}
+                              discountType={item.discountType}
+                              categoryDiscount={categoryDiscount}
+                              productDiscount={productDiscount}
+                              onSave={(discount, discountType) => 
+                                handleUpdateLineItemDiscount(index, discount, discountType)
+                              }
+                            />
+                          );
+                        })()}
                       </TableCell>
                       <TableCell align="right">₹{item.finalPrice}</TableCell>
                       <TableCell align="center">
@@ -948,7 +1103,10 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
                       <TableCell align="right">₹{item.price}</TableCell>
                       <TableCell align="right">{item.quantity}</TableCell>
                       <TableCell align="right">
-                        {item.discount}%{item.discountType !== 'none' && ` (${item.discountType})`}
+                        {item.discount}%
+                        {item.discountType === 'category' && ' (Category)'}
+                        {item.discountType === 'product' && ' (Product)'}
+                        {item.discountType === 'custom' && ' (Custom)'}
                       </TableCell>
                       <TableCell align="right">₹{item.finalPrice}</TableCell>
                     </TableRow>
@@ -1061,6 +1219,25 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
           </Button>
         </DialogActions>
       </Dialog>
+      
+      {/* Category Discount Editor Dialog */}
+      {selectedParty && (
+        <CategoryDiscountEditor
+          open={openCategoryDiscountEditor}
+          onClose={() => setOpenCategoryDiscountEditor(false)}
+          partyId={selectedParty.id}
+          categoryDiscounts={selectedParty.categoryDiscounts}
+          onSave={handleUpdateCategoryDiscounts}
+        />
+      )}
+      
+      {/* Success Message Snackbar */}
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={6000}
+        onClose={() => setSuccessMessage(null)}
+        message={successMessage}
+      />
     </Box>
   );
 }

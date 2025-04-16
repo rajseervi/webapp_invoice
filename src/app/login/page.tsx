@@ -27,10 +27,11 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { GoogleAuthProvider, signInWithPopup, browserSessionPersistence, setPersistence } from 'firebase/auth';
 import { auth } from '../../firebase/config';
+import { redirectBasedOnRole, handleLoginError, getCallbackUrl } from '@/utils/authRedirects';
 
 export default function Login() {
   const router = useRouter();
-  const { login, currentUser } = useAuth();
+  const { login, currentUser, userRole, userStatus } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -45,17 +46,26 @@ export default function Login() {
   const [lockoutTime, setLockoutTime] = useState<number | null>(null);
   
   useEffect(() => {
-    // Get callback URL from query parameters if it exists
+    // Get query parameters
     const urlParams = new URLSearchParams(window.location.search);
-    const callbackUrl = urlParams.get('callbackUrl');
+    const callbackUrl = getCallbackUrl();
+    const pendingApproval = urlParams.get('pendingApproval');
+    const errorParam = urlParams.get('error');
     
-    // If user is already logged in, redirect to callback URL or dashboard
+    // Show message if user registration is pending approval
+    if (pendingApproval === 'true') {
+      setSuccessMessage('Your account has been created and is pending admin approval. You will be notified when your account is approved.');
+      setShowSuccessMessage(true);
+    }
+    
+    // Show error message if provided in URL
+    if (errorParam) {
+      setError(decodeURIComponent(errorParam));
+    }
+    
+    // If user is already logged in, redirect to appropriate page
     if (currentUser) {
-      if (callbackUrl) {
-        router.push(decodeURI(callbackUrl));
-      } else {
-        router.push('/dashboard');
-      }
+      redirectBasedOnRole(router, userRole, callbackUrl, userStatus);
     }
     
     // Check if there's a lockout time in localStorage
@@ -74,7 +84,7 @@ export default function Login() {
     if (attempts) {
       setLoginAttempts(parseInt(attempts));
     }
-  }, [currentUser, router]);
+  }, [currentUser, router, userRole, userStatus]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -122,19 +132,12 @@ export default function Login() {
       setSuccessMessage('Login successful! Redirecting...');
       setShowSuccessMessage(true);
       
-      // Get callback URL from query parameters if it exists
-      const urlParams = new URLSearchParams(window.location.search);
-      const callbackUrl = urlParams.get('callbackUrl');
+      // Get callback URL
+      const callbackUrl = getCallbackUrl();
       
       // Redirect based on callback URL or user role after a short delay
       setTimeout(() => {
-        if (callbackUrl) {
-          router.push(decodeURI(callbackUrl));
-        } else if (role === 'admin') {
-          router.push('/admin/dashboard');
-        } else {
-          router.push('/dashboard');
-        }
+        redirectBasedOnRole(router, role, callbackUrl, userStatus);
       }, 1000);
     } catch (err: any) {
       // Increment login attempts
@@ -149,18 +152,8 @@ export default function Login() {
         localStorage.setItem('loginLockout', lockoutUntil.toString());
         setError('Too many failed login attempts. Please try again in 15 minutes.');
       } else {
-        // Handle different Firebase auth errors
-        if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-          setError('Invalid email or password');
-        } else if (err.code === 'auth/too-many-requests') {
-          setError('Too many login attempts. Please try again later.');
-        } else if (err.code === 'auth/user-disabled') {
-          setError('This account has been disabled. Please contact support.');
-        } else if (err.code === 'auth/network-request-failed') {
-          setError('Network error. Please check your internet connection and try again.');
-        } else {
-          setError('Failed to log in: ' + (err.message || 'Unknown error'));
-        }
+        // Use utility function to handle login errors
+        handleLoginError(err, setError);
       }
     } finally {
       setLoading(false);
@@ -186,22 +179,23 @@ export default function Login() {
         await setPersistence(auth, browserSessionPersistence);
       }
       
-      const { loginWithGoogle } = useAuth();
-      await loginWithGoogle();
+      // Use the loginWithGoogle function from the existing auth context
+      const role = await useAuth().loginWithGoogle();
       
       // Show success message
       setSuccessMessage('Google login successful! Redirecting...');
       setShowSuccessMessage(true);
       
-      // The redirect will happen automatically through the AuthContext useEffect
+      // Get callback URL
+      const callbackUrl = getCallbackUrl();
+      
+      // Redirect based on role and callback URL
+      setTimeout(() => {
+        redirectBasedOnRole(router, role, callbackUrl, userStatus);
+      }, 1000);
     } catch (err: any) {
-      if (err.code === 'auth/popup-closed-by-user') {
-        setError('Login canceled. Please try again.');
-      } else if (err.code === 'auth/popup-blocked') {
-        setError('Login popup was blocked. Please allow popups for this site.');
-      } else {
-        setError('Failed to sign in with Google: ' + (err.message || 'Unknown error'));
-      }
+      // Use utility function to handle login errors
+      handleLoginError(err, setError);
       setLoading(false);
     }
   };

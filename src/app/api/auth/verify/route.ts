@@ -10,22 +10,34 @@ export async function GET(request: NextRequest) {
     if (!sessionCookie) {
       return NextResponse.json(
         { authenticated: false, message: 'No session cookie found' },
-        { status: 401 }
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
     // In a real application, you would verify the token with Firebase Admin SDK
-    // For now, we'll just check if the cookie exists
+    // For now, we'll just check if the cookie exists and return a proper JSON response
     
-    return NextResponse.json({
-      authenticated: true,
-      role: userRole || 'user'
-    });
+    return new NextResponse(
+      JSON.stringify({
+        authenticated: true,
+        role: userRole || 'user'
+      }),
+      { 
+        status: 200, 
+        headers: { 'Content-Type': 'application/json' } 
+      }
+    );
   } catch (error) {
     console.error('Error verifying session:', error);
-    return NextResponse.json(
-      { authenticated: false, message: 'Failed to verify session' },
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    return new NextResponse(
+      JSON.stringify({ 
+        authenticated: false, 
+        message: 'Failed to verify session' 
+      }),
+      { 
+        status: 500, 
+        headers: { 'Content-Type': 'application/json' } 
+      }
     );
   }
 }

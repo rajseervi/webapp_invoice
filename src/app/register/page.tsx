@@ -81,17 +81,30 @@ export default function Register() {
         formData.password
       );
       
-      // Create user document in Firestore
+      // Create user document in Firestore with pending status
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
         role: 'user',
-        createdAt: new Date().toISOString()
+        status: 'pending', // Set status as pending for admin approval
+        createdAt: new Date().toISOString(),
+        approvalStatus: {
+          isApproved: false,
+          approvedBy: null,
+          approvedAt: null,
+          notes: null
+        },
+        subscription: {
+          isActive: false,
+          startDate: null,
+          endDate: null,
+          plan: null
+        }
       });
       
-      // Redirect to login page
-      router.push('/login');
+      // Redirect to login page with a message about pending approval
+      router.push('/login?pendingApproval=true');
     } catch (err: any) {
       // Handle Firebase auth errors
       if (err.code === 'auth/email-already-in-use') {

@@ -30,12 +30,37 @@ async function handleApiResponse(response, errorMessage) {
 const AuthContext = createContext();
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  
+  // Add a helper function to check permissions
+  const hasPermission = (type, id) => {
+    // If user is admin, they have all permissions
+    if (context.userRole === 'admin') {
+      return true;
+    }
+    
+    // Check if user has specific permission
+    if (type === 'page') {
+      return context.currentUser?.permissions?.pages?.[id] === true;
+    } else if (type === 'feature') {
+      return context.currentUser?.permissions?.features?.[id] === true;
+    }
+    
+    return false;
+  };
+  
+  return {
+    ...context,
+    hasPermission
+  };
 }
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
+  const [userStatus, setUserStatus] = useState(null);
+  const [subscriptionActive, setSubscriptionActive] = useState(false);
+  const [subscriptionData, setSubscriptionData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   async function login(email, password) {
@@ -60,27 +85,83 @@ export function AuthProvider({ children }) {
       const userDoc = await getDoc(userDocRef);
       
       let role = 'user';
+      let status = 'active';
+      let subscription = { isActive: false, startDate: null, endDate: null, plan: null };
+      let approvalStatus = { isApproved: true, approvedBy: null, approvedAt: null, notes: null };
+      
       if (!userDoc.exists()) {
-        // Create new user document with default role
+        // Create new user document with default role and pending status
         const userData = {
           email: userCredential.user.email,
           role: 'user',
+          status: 'pending',
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString(),
           loginMethod: 'email',
-          loginCount: 1
+          loginCount: 1,
+          approvalStatus: {
+            isApproved: false,
+            approvedBy: null,
+            approvedAt: null,
+            notes: null
+          },
+          subscription: {
+            isActive: false,
+            startDate: null,
+            endDate: null,
+            plan: null
+          }
         };
         try {
           await setDoc(userDocRef, userData);
+          status = 'pending';
+          approvalStatus = userData.approvalStatus;
         } catch (docError) {
           console.error('Error creating user document:', docError);
           // Continue with login even if document creation fails
         }
       } else {
-        role = userDoc.data()?.role || 'user';
+        const userData = userDoc.data();
+        role = userData?.role || 'user';
+        status = userData?.status || 'active';
+        subscription = userData?.subscription || { isActive: false, startDate: null, endDate: null, plan: null };
+        approvalStatus = userData?.approvalStatus || { isApproved: true, approvedBy: null, approvedAt: null, notes: null };
+        
+        // Check if user is approved
+        if (status === 'pending' || (approvalStatus && !approvalStatus.isApproved)) {
+          await signOut(auth);
+          throw new Error('Your account is pending approval by an administrator.');
+        }
+        
+        // Check if user is inactive
+        if (status === 'inactive') {
+          await signOut(auth);
+          throw new Error('Your account has been deactivated. Please contact an administrator.');
+        }
+        
+        // Check subscription status if it exists
+        if (subscription && subscription.isActive && subscription.endDate) {
+          const endDate = new Date(subscription.endDate);
+          if (endDate < new Date()) {
+            // Subscription has expired
+            subscription.isActive = false;
+            await setDoc(userDocRef, {
+              subscription: {
+                ...subscription,
+                isActive: false
+              }
+            }, { merge: true });
+            
+            // If subscription is required, prevent login
+            if (role !== 'admin') {
+              await signOut(auth);
+              throw new Error('Your subscription has expired. Please renew your subscription to continue.');
+            }
+          }
+        }
+        
         // Update login information
         try {
-          const userData = userDoc.data();
           await setDoc(userDocRef, {
             lastLogin: new Date().toISOString(),
             loginMethod: 'email',
@@ -158,27 +239,87 @@ export function AuthProvider({ children }) {
       const userDoc = await getDoc(userDocRef);
       
       let role = 'user';
+      let status = 'active';
+      let subscription = { isActive: false, startDate: null, endDate: null, plan: null };
+      let approvalStatus = { isApproved: true, approvedBy: null, approvedAt: null, notes: null };
       
-      // If not, create a new user document
+      // If not, create a new user document with pending status
       if (!userDoc.exists()) {
         const userData = {
           email: userCredential.user.email,
           displayName: userCredential.user.displayName,
           photoURL: userCredential.user.photoURL,
           role: 'user',
+          status: 'pending',
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString(),
           loginMethod: 'google',
-          loginCount: 1
+          loginCount: 1,
+          approvalStatus: {
+            isApproved: false,
+            approvedBy: null,
+            approvedAt: null,
+            notes: null
+          },
+          subscription: {
+            isActive: false,
+            startDate: null,
+            endDate: null,
+            plan: null
+          }
         };
         await setDoc(userDocRef, userData);
+        status = 'pending';
+        approvalStatus = userData.approvalStatus;
+        
+        // For new users with pending approval, sign out and throw error
+        await signOut(auth);
+        throw new Error('Your account has been created and is pending approval by an administrator.');
       } else {
-        role = userDoc.data()?.role || 'user';
+        const userData = userDoc.data();
+        role = userData?.role || 'user';
+        status = userData?.status || 'active';
+        subscription = userData?.subscription || { isActive: false, startDate: null, endDate: null, plan: null };
+        approvalStatus = userData?.approvalStatus || { isApproved: true, approvedBy: null, approvedAt: null, notes: null };
+        
+        // Check if user is approved
+        if (status === 'pending' || (approvalStatus && !approvalStatus.isApproved)) {
+          await signOut(auth);
+          throw new Error('Your account is pending approval by an administrator.');
+        }
+        
+        // Check if user is inactive
+        if (status === 'inactive') {
+          await signOut(auth);
+          throw new Error('Your account has been deactivated. Please contact an administrator.');
+        }
+        
+        // Check subscription status if it exists
+        if (subscription && subscription.isActive && subscription.endDate) {
+          const endDate = new Date(subscription.endDate);
+          if (endDate < new Date()) {
+            // Subscription has expired
+            subscription.isActive = false;
+            await setDoc(userDocRef, {
+              subscription: {
+                ...subscription,
+                isActive: false
+              }
+            }, { merge: true });
+            
+            // If subscription is required, prevent login
+            if (role !== 'admin') {
+              await signOut(auth);
+              throw new Error('Your subscription has expired. Please renew your subscription to continue.');
+            }
+          }
+        }
+        
         // Update last login time
         await setDoc(userDocRef, {
           lastLogin: new Date().toISOString(),
           loginMethod: 'google',
-          loginCount: (userDoc.data().loginCount || 0) + 1
+          loginCount: (userData.loginCount || 0) + 1
         }, { merge: true });
       }
       
@@ -223,22 +364,58 @@ export function AuthProvider({ children }) {
     }
   }
 
-  async function logout() {
+  async function logout(redirectUrl = '/login') {
     try {
-      // Clear the session cookie via API
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-      });
+      // Clear all local storage items related to authentication
+      localStorage.removeItem('loginAttempts');
+      localStorage.removeItem('loginLockout');
       
-      // Sign out from Firebase
-      await signOut(auth);
-      
-      // Clear local state
+      // Clear any application-specific state
       setCurrentUser(null);
       setUserRole(null);
+      setUserStatus(null);
+      setSubscriptionActive(false);
+      setSubscriptionData(null);
+      
+      // Clear the session cookies via API
+      try {
+        const response = await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include' // Include cookies in the request
+        });
+        
+        if (!response.ok) {
+          console.warn('Session cookie clearing may have failed:', await response.text());
+        }
+      } catch (cookieError) {
+        console.warn('Error clearing session cookies:', cookieError);
+        // Continue with logout even if cookie clearing fails
+      }
+      
+      // Sign out from Firebase
+      try {
+        await signOut(auth);
+      } catch (signOutError) {
+        console.warn('Firebase sign out error:', signOutError);
+        // Continue with logout even if Firebase sign out fails
+      }
+      
+      // Return the redirect URL for the calling component to use
+      return redirectUrl;
     } catch (error) {
       console.error('Logout error:', error);
-      throw new Error('Failed to log out');
+      // Even if there's an error, try to clear as much as possible
+      setCurrentUser(null);
+      setUserRole(null);
+      setUserStatus(null);
+      setSubscriptionActive(false);
+      setSubscriptionData(null);
+      
+      // Still return the redirect URL so the UI can navigate away
+      return redirectUrl;
     }
   }
 
@@ -251,34 +428,85 @@ export function AuthProvider({ children }) {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
-          // Get the user's role
-          const role = await getUserRole(user.uid);
-          setUserRole(role);
+          // Get the user document
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userDocRef);
           
-          // Get the ID token
-          const idToken = await user.getIdToken();
-          
-          // Set the session cookie via API
-          const response = await fetch('/api/auth/session', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              token: idToken,
-              role: role,
-              expiresIn: 60 * 60 * 24 * 5 // 5 days
-            }),
-          });
-          
-          if (!response.ok) {
-            console.error('Failed to set session cookie on auth state change:', await response.text());
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            
+            // Set user role
+            const role = userData?.role || 'user';
+            setUserRole(role);
+            
+            // Set user status
+            const status = userData?.status || 'active';
+            setUserStatus(status);
+            
+            // Set subscription data
+            const subscription = userData?.subscription || { isActive: false, startDate: null, endDate: null, plan: null };
+            setSubscriptionData(subscription);
+            
+            // Check if subscription is active
+            let isSubscriptionActive = subscription.isActive;
+            if (isSubscriptionActive && subscription.endDate) {
+              const endDate = new Date(subscription.endDate);
+              if (endDate < new Date()) {
+                isSubscriptionActive = false;
+                // Update subscription status in Firestore
+                await setDoc(userDocRef, {
+                  subscription: {
+                    ...subscription,
+                    isActive: false
+                  }
+                }, { merge: true });
+              }
+            }
+            setSubscriptionActive(isSubscriptionActive);
+            
+            // Get the ID token
+            const idToken = await user.getIdToken();
+            
+            // Set the session cookie via API
+            const response = await fetch('/api/auth/session', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                token: idToken,
+                role: role,
+                status: status,
+                subscriptionActive: isSubscriptionActive,
+                expiresIn: 60 * 60 * 24 * 5 // 5 days
+              }),
+            });
+            
+            if (!response.ok) {
+              console.error('Failed to set session cookie on auth state change:', await response.text());
+            }
+          } else {
+            // If user document doesn't exist, set default values
+            setUserRole('user');
+            setUserStatus('pending');
+            setSubscriptionActive(false);
+            setSubscriptionData({ isActive: false, startDate: null, endDate: null, plan: null });
           }
         } catch (error) {
           console.error('Error in auth state change:', error);
+          // Set default values in case of error
+          setUserRole('user');
+          setUserStatus('active');
+          setSubscriptionActive(false);
+          setSubscriptionData(null);
         }
       } else {
+        // Reset all state variables on logout
         setUserRole(null);
+        setUserStatus(null);
+        setSubscriptionActive(false);
+        setSubscriptionData(null);
+        
         // Clear the session cookie on logout
         try {
           await fetch('/api/auth/logout', {
@@ -298,6 +526,9 @@ export function AuthProvider({ children }) {
   const value = {
     currentUser,
     userRole,
+    userStatus,
+    subscriptionActive,
+    subscriptionData,
     login,
     loginWithGoogle,
     logout,
@@ -310,3 +541,6 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   );
 }
+
+// Export the AuthProvider as default for compatibility with imports
+export default AuthProvider;

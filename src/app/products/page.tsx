@@ -40,12 +40,12 @@ import {
   Search as SearchIcon,
   FilterList as FilterListIcon
 } from '@mui/icons-material';
-import { 
-  collection, 
-  getDocs, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
+import {
+  collection,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
   doc,
   query,
   where,
@@ -83,17 +83,17 @@ export default function ProductsPage() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [bulkCategoryDialogOpen, setBulkCategoryDialogOpen] = useState(false);
   const [selectedBulkCategory, setSelectedBulkCategory] = useState('');
-  
+
   // Pagination state
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
   const [lastVisible, setLastVisible] = useState<any>(null);
-  
+
   // Filter state
   const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [isFirstPage, setIsFirstPage] = useState(true);
-  
+
   const [newProduct, setNewProduct] = useState({
     name: '',
     category: '',
@@ -105,11 +105,11 @@ export default function ProductsPage() {
   const fetchTotalCount = async () => {
     try {
       const coll = collection(db, 'products');
-      
+
       // Get the total count of all products
       const snapshot = await getCountFromServer(coll);
       const totalProducts = snapshot.data().count;
-      
+
       if (!searchTerm && !categoryFilter) {
         // If no filters, use the total count
         setTotalCount(totalProducts);
@@ -119,24 +119,24 @@ export default function ProductsPage() {
         // full-text search natively
         const allProductsQuery = query(collection(db, 'products'));
         const allProductsSnapshot = await getDocs(allProductsQuery);
-        
+
         // Filter products based on search term and category
         const filteredCount = allProductsSnapshot.docs.filter(doc => {
           const data = doc.data();
-          
+
           // Check if product matches search term
           const matchesSearch = !searchTerm || (
             data.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             data.category.toLowerCase().includes(searchTerm.toLowerCase())
           );
-          
+
           // Check if product matches category filter
           const matchesCategory = !categoryFilter || data.category === categoryFilter;
-          
+
           // Product must match both filters
           return matchesSearch && matchesCategory;
         }).length;
-        
+
         setTotalCount(filteredCount);
       }
     } catch (error) {
@@ -148,44 +148,44 @@ export default function ProductsPage() {
   const fetchProducts = async (reset = false) => {
     try {
       setLoading(true);
-      
+
       // Base collection reference
       const productsRef = collection(db, 'products');
-      
+
       // Build query constraints
       let queryConstraints = [];
-      
+
       // Add category filter if specified (this can be done server-side)
       if (categoryFilter) {
         queryConstraints.push(where('category', '==', categoryFilter));
       }
-      
+
       // Add ordering
       queryConstraints.push(orderBy('name'));
-      
+
       // Add pagination constraints
       if (!reset && !isFirstPage) {
         queryConstraints.push(startAfter(lastVisible));
       } else {
         setIsFirstPage(true);
       }
-      
+
       // Add limit
       queryConstraints.push(limit(rowsPerPage));
-      
+
       // Create the query
       let productsQuery = query(productsRef, ...queryConstraints);
-      
+
       // For search, we'll need to do client-side filtering
       // In a real production app, you would use a search service like Algolia or Elasticsearch
       // Firestore doesn't support full-text search natively
-      
+
       const productsSnapshot = await getDocs(productsQuery);
-      
+
       // Store the last visible document for pagination
       const lastVisibleDoc = productsSnapshot.docs[productsSnapshot.docs.length - 1];
       setLastVisible(lastVisibleDoc);
-      
+
       // Map the documents to our product objects
       let productsList = productsSnapshot.docs.map(doc => {
         const data = doc.data();
@@ -198,86 +198,90 @@ export default function ProductsPage() {
           status: data.stock < 10 ? 'Low Stock' : 'In Stock'
         };
       });
-      
+
       // If there's a search term, filter the results client-side
       if (searchTerm) {
-        productsList = productsList.filter(product => 
+        productsList = productsList.filter(product =>
           product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           product.category.toLowerCase().includes(searchTerm.toLowerCase())
         );
-      
-      // If we got fewer results than expected, try to fetch more
-      if (productsList.length < rowsPerPage && productsSnapshot.docs.length === rowsPerPage && lastVisibleDoc) {
-        // There might be more results on the next page
-        // Build query constraints for next page
-        let nextPageConstraints = [];
-        
-        // Add category filter if specified
-        if (categoryFilter) {
-          nextPageConstraints.push(where('category', '==', categoryFilter));
-        }
-        
-        // Add ordering and pagination
-        nextPageConstraints.push(orderBy('name'));
-        nextPageConstraints.push(startAfter(lastVisibleDoc));
-        nextPageConstraints.push(limit(rowsPerPage));
-        
-        // Create the query
-        const nextPageQuery = query(
-          collection(db, 'products'),
-          ...nextPageConstraints
-        );
-        
-        try {
-          const nextPageSnapshot = await getDocs(nextPageQuery);
-          
-          if (nextPageSnapshot.docs.length > 0) {
-            const nextPageProducts = nextPageSnapshot.docs.map(doc => {
-              const data = doc.data();
-              return {
-                id: doc.id,
-                name: data.name,
-                category: data.category,
-                price: data.price,
-                stock: data.stock,
-                status: data.stock < 10 ? 'Low Stock' : 'In Stock'
-              };
-            });
-            
-            // Filter and add to current results
-            const filteredNextPage = nextPageProducts.filter(product => 
-              product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              product.category.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-            
-            if (filteredNextPage.length > 0) {
-              // Update last visible for pagination
-              setLastVisible(nextPageSnapshot.docs[nextPageSnapshot.docs.length - 1]);
-              // Add to current results
-              productsList = [...productsList, ...filteredNextPage].slice(0, rowsPerPage);
-            }
+
+        // If we got fewer results than expected, try to fetch more
+        if (productsList.length < rowsPerPage && productsSnapshot.docs.length === rowsPerPage && lastVisibleDoc) {
+          // There might be more results on the next page
+          // Build query constraints for next page
+          let nextPageConstraints = [];
+
+          // Add category filter if specified
+          if (categoryFilter) {
+            nextPageConstraints.push(where('category', '==', categoryFilter));
           }
-        } catch (error) {
-          console.error('Error fetching additional search results:', error);
+
+          // Add ordering and pagination
+          nextPageConstraints.push(orderBy('name'));
+          nextPageConstraints.push(startAfter(lastVisibleDoc));
+          nextPageConstraints.push(limit(rowsPerPage));
+
+          // Create the query
+          const nextPageQuery = query(
+            collection(db, 'products'),
+            ...nextPageConstraints
+          );
+
+          try {
+            const nextPageSnapshot = await getDocs(nextPageQuery);
+
+            if (nextPageSnapshot.docs.length > 0) {
+              const nextPageProducts = nextPageSnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                  id: doc.id,
+                  name: data.name,
+                  category: data.category,
+                  price: data.price,
+                  stock: data.stock,
+                  status: data.stock < 10 ? 'Low Stock' : 'In Stock'
+                };
+              });
+
+              // Filter and add to current results
+              const filteredNextPage = nextPageProducts.filter(product =>
+                product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                product.category.toLowerCase().includes(searchTerm.toLowerCase())
+              );
+
+              if (filteredNextPage.length > 0) {
+                // Update last visible for pagination
+                setLastVisible(nextPageSnapshot.docs[nextPageSnapshot.docs.length - 1]);
+                // Add to current results
+                productsList = [...productsList, ...filteredNextPage].slice(0, rowsPerPage);
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching additional search results:', error);
+          }
         }
       }
       
+      // Always set products regardless of search term
       setProducts(productsList);
       setError(null);
-    } catch (err) {
+    }
+    } catch (err: any) {
       console.error('Error fetching products:', err);
       setError('Failed to fetch products. Please try again later.');
     } finally {
       setLoading(false);
     }
+
   };
-  
+
   // Fetch categories
   const fetchCategories = async () => {
     try {
       const categoriesCollection = collection(db, 'categories');
       const categoriesSnapshot = await getDocs(categoriesCollection);
-      
+
       const categoriesList = categoriesSnapshot.docs.map(doc => {
         const data = doc.data();
         return {
@@ -285,14 +289,14 @@ export default function ProductsPage() {
           name: data.name
         };
       });
-      
+
       setCategories(categoriesList);
     } catch (err) {
       console.error('Error fetching categories:', err);
       setError('Failed to fetch categories. Please try again later.');
     }
   };
-  
+
   // Main fetch data function
   const fetchData = async (reset = false) => {
     try {
@@ -308,13 +312,13 @@ export default function ProductsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  };;
 
   // Initial data fetch
   useEffect(() => {
     fetchData(true);
   }, []);
-  
+
   // Fetch data when page, rowsPerPage, or searchTerm changes
   useEffect(() => {
     if (page === 0) {
@@ -323,7 +327,7 @@ export default function ProductsPage() {
       fetchData(false);
     }
   }, [page, rowsPerPage]);
-  
+
   // Reset pagination and fetch data when search term changes
   useEffect(() => {
     // We'll implement debouncing to avoid too many requests
@@ -331,24 +335,24 @@ export default function ProductsPage() {
       // Reset to first page when search term changes
       setPage(0);
       setIsFirstPage(true);
-      
+
       // Fetch data with the new search term
       fetchData(true);
     }, 500); // 500ms delay
-    
+
     return () => clearTimeout(delayDebounceFn);
   }, [searchTerm]);
-  
+
   // Reset pagination and fetch data when category filter changes
   useEffect(() => {
     // Reset to first page when category filter changes
     setPage(0);
     setIsFirstPage(true);
-    
+
     // Fetch data with the new category filter
     fetchData(true);
   }, [categoryFilter]);
-  
+
   // Handle page change
   const handleChangePage = (event: unknown, newPage: number) => {
     // If going forward, use the current lastVisible
@@ -373,7 +377,7 @@ export default function ProductsPage() {
     setSearchTerm(event.target.value);
     // The useEffect hook with debounce will handle the pagination reset and data fetching
   };
-  
+
   const handleCategoryFilter = (event: any) => {
     setCategoryFilter(event.target.value as string);
     // The useEffect hook will handle the pagination reset and data fetching
@@ -419,7 +423,7 @@ export default function ProductsPage() {
   const handleSaveProduct = async () => {
     try {
       setLoading(true);
-      
+
       if (selectedProduct) {
         // Update existing product in Firebase
         const productRef = doc(db, 'products', selectedProduct.id);
@@ -429,15 +433,15 @@ export default function ProductsPage() {
           price: Number(newProduct.price),
           stock: Number(newProduct.stock)
         });
-        
+
         // Update local state
-        setProducts(products.map(p => 
-          p.id === selectedProduct.id 
-            ? { 
-                ...p, 
-                ...newProduct, 
-                status: Number(newProduct.stock) < 10 ? 'Low Stock' : 'In Stock' 
-              } 
+        setProducts(products.map(p =>
+          p.id === selectedProduct.id
+            ? {
+              ...p,
+              ...newProduct,
+              status: Number(newProduct.stock) < 10 ? 'Low Stock' : 'In Stock'
+            }
             : p
         ));
       } else {
@@ -449,7 +453,7 @@ export default function ProductsPage() {
           price: Number(newProduct.price),
           stock: Number(newProduct.stock)
         });
-        
+
         // Add to local state
         setProducts([...products, {
           id: docRef.id,
@@ -457,7 +461,7 @@ export default function ProductsPage() {
           status: Number(newProduct.stock) < 10 ? 'Low Stock' : 'In Stock'
         }]);
       }
-      
+
       setOpenDialog(false);
       setError(null);
     } catch (err) {
@@ -472,16 +476,16 @@ export default function ProductsPage() {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
         setLoading(true);
-        
+
         // Delete from Firebase
         const productRef = doc(db, 'products', id);
         await deleteDoc(productRef);
-        
+
         // Refresh the data after deletion
         fetchTotalCount();
         fetchProducts(true);
         setPage(0); // Reset to first page
-        
+
         setError(null);
       } catch (err) {
         console.error('Error deleting product:', err);
@@ -494,10 +498,10 @@ export default function ProductsPage() {
 
   const handleBulkCategoryChange = async () => {
     if (!selectedBulkCategory || selectedProducts.length === 0) return;
-    
+
     try {
       setLoading(true);
-      
+
       // Update all selected products with new category
       const updatePromises = selectedProducts?.map(async (productId) => {
         const productRef = doc(db, 'products', productId);
@@ -505,12 +509,12 @@ export default function ProductsPage() {
           category: selectedBulkCategory
         });
       });
-      
+
       await Promise.all(updatePromises);
-      
+
       // Refresh the data after update
       fetchProducts(page === 0);
-      
+
       setSelectedProducts([]);
       setBulkCategoryDialogOpen(false);
       setSelectedBulkCategory('');
@@ -523,21 +527,7 @@ export default function ProductsPage() {
     }
   };
 
-  const handleSelectProduct = (productId: string) => {
-    setSelectedProducts(prev =>
-      prev.includes(productId)
-        ? prev.filter(id => id !== productId)
-        : [...prev, productId]
-    );
-  };
 
-  const handleSelectAllProducts = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.checked) {
-      setSelectedProducts(filteredProducts.map(p => p.id));
-    } else {
-      setSelectedProducts([]);
-    }
-  };
 
   return (
     <DashboardLayout>
@@ -548,8 +538,8 @@ export default function ProductsPage() {
             <ExcelImportExport onSuccess={fetchData} />
             <ExportAllProducts />
             <RemoveDuplicatesButton onSuccess={fetchData} />
-            <Button 
-              variant="contained" 
+            <Button
+              variant="contained"
               startIcon={<AddIcon />}
               onClick={handleAddProduct}
             >
@@ -597,8 +587,8 @@ export default function ProductsPage() {
                 ))}
               </Select>
             </FormControl>
-            <Button 
-              variant="outlined" 
+            <Button
+              variant="outlined"
               startIcon={<FilterListIcon />}
             >
               Filter
@@ -624,7 +614,16 @@ export default function ProductsPage() {
                     <Checkbox
                       indeterminate={selectedProducts.length > 0 && selectedProducts.length < filteredProducts.length}
                       checked={selectedProducts.length > 0 && selectedProducts.length === filteredProducts.length}
-                      onChange={handleSelectAllProducts}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          // Select all products on the current page
+                          const allIds = filteredProducts.map(product => product.id);
+                          setSelectedProducts(allIds);
+                        } else {
+                          // Deselect all products
+                          setSelectedProducts([]);
+                        }
+                      }}
                     />
                   </TableCell>
                   <TableCell>ID</TableCell>
@@ -654,7 +653,18 @@ export default function ProductsPage() {
                       <TableCell padding="checkbox">
                         <Checkbox
                           checked={selectedProducts.includes(product.id)}
-                          onChange={() => handleSelectProduct(product.id)}
+                          onChange={() => {
+                            const newSelected = [...selectedProducts];
+                            if (newSelected.includes(product.id)) {
+                              // Remove if already selected
+                              const index = newSelected.indexOf(product.id);
+                              newSelected.splice(index, 1);
+                            } else {
+                              // Add if not selected
+                              newSelected.push(product.id);
+                            }
+                            setSelectedProducts(newSelected);
+                          }}
                         />
                       </TableCell>
                       <TableCell>{product.id.substring(0, 8)}...</TableCell>
@@ -663,19 +673,19 @@ export default function ProductsPage() {
                       <TableCell>₹{product.price}</TableCell>
                       <TableCell>{product.stock}</TableCell>
                       <TableCell>
-                        <Chip 
-                          label={product.status} 
-                          color={product.status === 'Low Stock' ? 'warning' : 'success'} 
-                          size="small" 
+                        <Chip
+                          label={product.status}
+                          color={product.status === 'Low Stock' ? 'warning' : 'success'}
+                          size="small"
                         />
                       </TableCell>
                       <TableCell>
                         <IconButton size="small" onClick={() => handleEditProduct(product)}>
                           <EditIcon fontSize="small" />
                         </IconButton>
-                        <IconButton 
-                          size="small" 
-                          color="error" 
+                        <IconButton
+                          size="small"
+                          color="error"
                           onClick={() => handleDeleteProduct(product.id)}
                         >
                           <DeleteIcon fontSize="small" />
@@ -687,7 +697,7 @@ export default function ProductsPage() {
               </TableBody>
             </Table>
           </TableContainer>
-          
+
           {!loading && (
             <TablePagination
               component="div"
@@ -726,8 +736,8 @@ export default function ProductsPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setBulkCategoryDialogOpen(false)}>Cancel</Button>
-          <Button 
-            onClick={handleBulkCategoryChange} 
+          <Button
+            onClick={handleBulkCategoryChange}
             variant="contained"
             disabled={loading || !selectedBulkCategory}
           >
@@ -789,8 +799,8 @@ export default function ProductsPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button 
-            onClick={handleSaveProduct} 
+          <Button
+            onClick={handleSaveProduct}
             variant="contained"
             disabled={loading}
           >
@@ -822,8 +832,8 @@ export default function ProductsPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setBulkCategoryDialogOpen(false)}>Cancel</Button>
-          <Button 
-            onClick={handleBulkCategoryChange} 
+          <Button
+            onClick={handleBulkCategoryChange}
             variant="contained"
             disabled={loading || !selectedBulkCategory}
           >
@@ -833,20 +843,4 @@ export default function ProductsPage() {
       </Dialog>
     </DashboardLayout>
   );
-}
-
-  const handleSelectProduct = (productId: string) => {
-    setSelectedProducts(prev =>
-      prev.includes(productId)
-        ? prev.filter(id => id !== productId)
-        : [...prev, productId]
-    );
-  };
-
-  const handleSelectAllProducts = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.checked) {
-      setSelectedProducts(filteredProducts.map(p => p.id));
-    } else {
-      setSelectedProducts([]);
-    }
-  };
+};

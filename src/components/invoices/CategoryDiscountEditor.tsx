@@ -1,0 +1,304 @@
+"use client";
+import React, { useState, useEffect } from 'react';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Typography,
+  Box,
+  TextField,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  IconButton,
+  CircularProgress,
+  Alert,
+  Tooltip,
+  Divider
+} from '@mui/material';
+import {
+  Edit as EditIcon,
+  Save as SaveIcon,
+  Cancel as CancelIcon,
+  Refresh as RefreshIcon
+} from '@mui/icons-material';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '@/firebase/config';
+
+interface Category {
+  id: string;
+  name: string;
+  defaultDiscount?: number;
+}
+
+interface CategoryDiscount {
+  categoryId: string;
+  categoryName: string;
+  discount: number;
+}
+
+interface CategoryDiscountEditorProps {
+  open: boolean;
+  onClose: () => void;
+  partyId: string;
+  categoryDiscounts: Record<string, number>;
+  onSave: (updatedDiscounts: Record<string, number>) => void;
+}
+
+const CategoryDiscountEditor: React.FC<CategoryDiscountEditorProps> = ({
+  open,
+  onClose,
+  partyId,
+  categoryDiscounts,
+  onSave
+}) => {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [discounts, setDiscounts] = useState<CategoryDiscount[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<number>(0);
+
+  // Fetch all categories
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setLoading(true);
+        const categoriesCollection = collection(db, 'categories');
+        const categoriesSnapshot = await getDocs(categoriesCollection);
+        
+        const categoriesList = categoriesSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.name,
+            defaultDiscount: data.defaultDiscount || 0
+          };
+        });
+        
+        setCategories(categoriesList);
+        
+        // Initialize discounts array with current values
+        const discountsList = categoriesList.map(category => {
+          // Check if there's a discount for this category name
+          const discount = categoryDiscounts[category.name] || 0;
+          
+          // Log for debugging
+          console.log(`Loading discount for category "${category.name}": ${discount}%`);
+          
+          return {
+            categoryId: category.id,
+            categoryName: category.name,
+            discount: discount
+          };
+        });
+        
+        setDiscounts(discountsList);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching categories:', err);
+        setError('Failed to load categories. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    if (open) {
+      fetchCategories();
+    }
+  }, [open, categoryDiscounts]);
+
+  const handleStartEditing = (categoryId: string, currentDiscount: number) => {
+    setEditingCategoryId(categoryId);
+    setEditValue(currentDiscount);
+  };
+
+  const handleCancelEditing = () => {
+    setEditingCategoryId(null);
+    setEditValue(0);
+  };
+
+  const handleSaveDiscount = (categoryId: string) => {
+    // Update the discount in the local state
+    setDiscounts(prevDiscounts => 
+      prevDiscounts.map(item => 
+        item.categoryId === categoryId 
+          ? { ...item, discount: editValue } 
+          : item
+      )
+    );
+    
+    setEditingCategoryId(null);
+  };
+
+  const handleSaveAllDiscounts = () => {
+    // Convert discounts array to the expected format
+    const updatedDiscounts: Record<string, number> = {};
+    
+    discounts.forEach(item => {
+      if (item.discount > 0) {
+        // Use category name as the key instead of category ID
+        updatedDiscounts[item.categoryName] = item.discount;
+        
+        // Log for debugging
+        console.log(`Setting discount for category "${item.categoryName}": ${item.discount}%`);
+      }
+    });
+    
+    onSave(updatedDiscounts);
+    onClose();
+  };
+
+  const handleResetToDefaults = () => {
+    // Reset to default discounts from categories
+    setDiscounts(
+      categories.map(category => ({
+        categoryId: category.id,
+        categoryName: category.name,
+        discount: category.defaultDiscount || 0
+      }))
+    );
+  };
+
+  return (
+    <Dialog 
+      open={open} 
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+    >
+      <DialogTitle>
+        <Typography variant="h6">Edit Category Discounts</Typography>
+      </DialogTitle>
+      
+      <DialogContent>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+        
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Set discount percentages for each product category. These discounts will be applied to all products in the respective categories for this invoice.
+        </Typography>
+        
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <TableContainer component={Paper} variant="outlined">
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Category</TableCell>
+                  <TableCell align="right">Discount (%)</TableCell>
+                  <TableCell align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {discounts.map((item) => (
+                  <TableRow key={item.categoryId}>
+                    <TableCell>{item.categoryName}</TableCell>
+                    <TableCell align="right">
+                      {editingCategoryId === item.categoryId ? (
+                        <TextField
+                          type="number"
+                          size="small"
+                          value={editValue}
+                          onChange={(e) => setEditValue(Number(e.target.value))}
+                          inputProps={{ min: 0, max: 100, step: 0.5 }}
+                          sx={{ width: 100 }}
+                          autoFocus
+                        />
+                      ) : (
+                        <Typography 
+                          variant="body2" 
+                          color={item.discount > 0 ? 'primary.main' : 'text.secondary'}
+                          fontWeight={item.discount > 0 ? 'medium' : 'normal'}
+                        >
+                          {item.discount}%
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="right">
+                      {editingCategoryId === item.categoryId ? (
+                        <Box>
+                          <IconButton 
+                            size="small" 
+                            color="primary"
+                            onClick={() => handleSaveDiscount(item.categoryId)}
+                          >
+                            <SaveIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton 
+                            size="small" 
+                            color="error"
+                            onClick={handleCancelEditing}
+                          >
+                            <CancelIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      ) : (
+                        <IconButton 
+                          size="small" 
+                          onClick={() => handleStartEditing(item.categoryId, item.discount)}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {discounts.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={3} align="center">
+                      <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+                        No categories found
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+        
+        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+          <Tooltip title="Reset to default category discounts">
+            <Button 
+              startIcon={<RefreshIcon />} 
+              onClick={handleResetToDefaults}
+              size="small"
+            >
+              Reset to Defaults
+            </Button>
+          </Tooltip>
+        </Box>
+      </DialogContent>
+      
+      <Divider />
+      
+      <DialogActions>
+        <Button onClick={onClose} color="inherit">
+          Cancel
+        </Button>
+        <Button 
+          onClick={handleSaveAllDiscounts} 
+          variant="contained"
+          disabled={loading}
+        >
+          Apply Discounts
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default CategoryDiscountEditor;

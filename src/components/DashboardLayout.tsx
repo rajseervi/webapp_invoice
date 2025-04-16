@@ -1,5 +1,8 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { handleLogout } from '@/utils/authRedirects'; 
 import {
   Box,
   Drawer,
@@ -48,9 +51,7 @@ import {
   Brightness4 as Brightness4Icon,
   Brightness7 as Brightness7Icon,
 } from '@mui/icons-material';
-import CompanyInfoDisplay from './CompanyInfoDisplay';
-import { useRouter, usePathname } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import CompanyInfoDisplay from './CompanyInfoDisplay'; 
 
 const drawerWidth = 280;
 
@@ -96,65 +97,88 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
   
   // Menu items with improved icons and organization
-  const menuItems = [
+  const allMenuItems = [
     { 
       text: 'Dashboard', 
       icon: <Dashboard color={pathname === '/dashboard' ? 'primary' : 'inherit'} />, 
       path: '/dashboard',
-      badge: null
+      badge: null,
+      roles: ['admin', 'manager', 'user'] // Available to all roles
     },
     {
       text: 'Sales',
       icon: <StorefrontIcon color={pathname.includes('/sales') || pathname.includes('/invoices') ? 'primary' : 'inherit'} />,
+      roles: ['admin', 'manager', 'user'], // Available to all roles
       children: [
-        { text: 'New Invoice', icon: <AddShoppingCart />, path: '/invoices/new', badge: null },
-        { text: 'Invoices', icon: <Receipt />, path: '/invoices', badge: null },
-        { text: 'Sales Report', icon: <BarChartIcon />, path: '/reports/sales', badge: null },
+        { text: 'New Invoice', icon: <AddShoppingCart />, path: '/invoices/new', badge: null, roles: ['admin', 'manager', 'user'] },
+        { text: 'Invoices', icon: <Receipt />, path: '/invoices', badge: null, roles: ['admin', 'manager', 'user'] },
+        { text: 'Sales Report', icon: <BarChartIcon />, path: '/reports/sales', badge: null, roles: ['admin', 'manager'] },
       ]
     },
     {
       text: 'Inventory',
       icon: <Inventory color={pathname.includes('/products') || pathname.includes('/categories') || pathname.includes('/inventory') ? 'primary' : 'inherit'} />,
+      roles: ['admin', 'manager'], // Only admin and manager can access inventory
       children: [
-        { text: 'Products', icon: <Inventory />, path: '/products', badge: null },
-        { text: 'Categories', icon: <Category />, path: '/categories', badge: null },
-        { text: 'Stock Alerts', icon: <Inventory />, path: '/inventory/alerts', badge: { count: 5, color: 'error' } },
-        { text: 'Import/Export', icon: <LocalShippingIcon />, path: '/products/import-export', badge: null },
+        { text: 'Products', icon: <Inventory />, path: '/products', badge: null, roles: ['admin', 'manager', 'user'] },
+        { text: 'Categories', icon: <Category />, path: '/categories', badge: null, roles: ['admin', 'manager'] },
+        { text: 'Stock Alerts', icon: <Inventory />, path: '/inventory/alerts', badge: { count: 5, color: 'error' }, roles: ['admin', 'manager'] },
+        { text: 'Import/Export', icon: <LocalShippingIcon />, path: '/products/import-export', badge: null, roles: ['admin', 'manager'] },
       ]
     },
     { 
       text: 'Parties', 
       icon: <People color={pathname.includes('/parties') ? 'primary' : 'inherit'} />, 
       path: '/parties',
-      badge: null
+      badge: null,
+      roles: ['admin', 'manager', 'user'] // Available to all roles
     },
     {
       text: 'Reports',
       icon: <AssessmentIcon color={pathname.includes('/reports') ? 'primary' : 'inherit'} />,
+      roles: ['admin', 'manager'], // Only admin and manager can access reports
       children: [
-        { text: 'Sales Report', icon: <BarChartIcon />, path: '/reports/sales', badge: null },
-        { text: 'Inventory Report', icon: <BarChartIcon />, path: '/reports/inventory', badge: null },
-        { text: 'User Activity', icon: <BarChartIcon />, path: '/reports/users', badge: null },
-        { text: 'Financial Summary', icon: <BarChartIcon />, path: '/reports/financial', badge: null },
+        { text: 'Sales Report', icon: <BarChartIcon />, path: '/reports/sales', badge: null, roles: ['admin', 'manager'] },
+        { text: 'Inventory Report', icon: <BarChartIcon />, path: '/reports/inventory', badge: null, roles: ['admin', 'manager'] },
+        { text: 'User Activity', icon: <BarChartIcon />, path: '/reports/users', badge: null, roles: ['admin'] },
+        { text: 'Financial Summary', icon: <BarChartIcon />, path: '/reports/financial', badge: null, roles: ['admin', 'manager'] },
       ]
     },
     {
       text: 'Administration',
       icon: <SettingsIcon color={pathname.includes('/admin') ? 'primary' : 'inherit'} />,
+      roles: ['admin'], // Only admin can access administration
       children: [
-        { text: 'Users', icon: <People />, path: '/users', badge: null },
-        { text: 'Roles & Permissions', icon: <People />, path: '/admin/roles', badge: null },
-        { text: 'System Logs', icon: <AssessmentIcon />, path: '/admin/logs', badge: null },
+        { text: 'Users', icon: <People />, path: '/users', badge: null, roles: ['admin'] },
+        { text: 'Roles & Permissions', icon: <People />, path: '/admin/roles', badge: null, roles: ['admin'] },
+        { text: 'System Logs', icon: <AssessmentIcon />, path: '/admin/logs', badge: null, roles: ['admin'] },
       ]
     },
   ];
+  
+  // Filter menu items based on user role
+  const menuItems = allMenuItems.filter(item => 
+    item.roles && item.roles.includes(userRole || 'user')
+  ).map(item => {
+    // If the item has children, filter those too
+    if (item.children) {
+      return {
+        ...item,
+        children: item.children.filter(child => 
+          child.roles && child.roles.includes(userRole || 'user')
+        )
+      };
+    }
+    return item;
+  });
   
   // Settings is separated for visual distinction
   const settingsItem = { 
     text: 'Settings', 
     icon: <SettingsIcon color={pathname.includes('/settings') ? 'primary' : 'inherit'} />, 
     path: '/settings',
-    badge: null
+    badge: null,
+    roles: ['admin', 'manager', 'user'] // Available to all roles
   };
 
   const handleNavigation = (path: string) => {
@@ -187,12 +211,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     handleNotificationsClose();
   };
 
-  const handleLogout = async () => {
+  const handleLogoutClick = async () => {
+    setLoading(true);
+    
     try {
-      await logout();
-      router.push('/login');
-    } catch (error) {
-      console.error('Logout failed:', error);
+      // Use the utility function for logout
+      await handleLogout(
+        logout,
+        router,
+        () => {
+          // Actions to perform before logout
+          setAnchorEl(null);
+          setMobileOpen(false);
+        }
+      );
+    } finally {
+      setLoading(false);
     }
   };
   
