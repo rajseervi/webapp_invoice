@@ -530,58 +530,74 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
   };
   
   // Handle updating category discounts
-  const handleUpdateCategoryDiscounts = (updatedDiscounts: Record<string, number>) => {
+  const handleUpdateCategoryDiscounts = async (updatedDiscounts: Record<string, number>) => {
     // Log the updated discounts
     console.log('Updating category discounts:', updatedDiscounts);
     
-    // Update the party's category discounts (temporary, for this invoice only)
+    // Update the party's category discounts (both in state and in the database)
     if (selectedParty) {
-      const updatedParty = {
-        ...selectedParty,
-        categoryDiscounts: {
-          ...selectedParty.categoryDiscounts,
-          ...updatedDiscounts
-        }
-      };
-      
-      // Log the updated party
-      console.log('Updated party category discounts:', updatedParty.categoryDiscounts);
-      
-      // Find the party in the parties array and update it
-      const partyIndex = parties.findIndex(p => p.id === selectedParty.id);
-      if (partyIndex !== -1) {
-        parties[partyIndex] = updatedParty;
-      }
-      
-      // Recalculate discounts for all line items, preserving custom discounts
-      const updatedItems = lineItems.map(item => {
-        // Skip items with custom discounts
-        if (item.discountType === 'custom') {
-          return item;
+      try {
+        setLoading(true);
+        
+        const updatedParty = {
+          ...selectedParty,
+          categoryDiscounts: {
+            ...selectedParty.categoryDiscounts,
+            ...updatedDiscounts
+          }
+        };
+        
+        // Log the updated party
+        console.log('Updated party category discounts:', updatedParty.categoryDiscounts);
+        
+        // Update the party in the database
+        const partyRef = doc(db, 'parties', selectedParty.id);
+        await updateDoc(partyRef, {
+          categoryDiscounts: updatedParty.categoryDiscounts,
+          updatedAt: new Date().toISOString()
+        });
+        
+        // Find the party in the parties array and update it
+        const partyIndex = parties.findIndex(p => p.id === selectedParty.id);
+        if (partyIndex !== -1) {
+          parties[partyIndex] = updatedParty;
         }
         
-        // For items with the category that was updated, apply the new discount
-        const product = products.find(p => p.id === item.productId);
-        if (product && updatedDiscounts.hasOwnProperty(product.category)) {
-          const newDiscount = updatedDiscounts[product.category];
-          const finalPrice = item.price * (1 - newDiscount/100) * item.quantity;
+        // Recalculate discounts for all line items, preserving custom discounts
+        const updatedItems = lineItems.map(item => {
+          // Skip items with custom discounts
+          if (item.discountType === 'custom') {
+            return item;
+          }
           
-          return {
-            ...item,
-            discount: newDiscount,
-            discountType: 'category',
-            finalPrice: parseFloat(finalPrice.toFixed(2))
-          };
-        }
+          // For items with the category that was updated, apply the new discount
+          const product = products.find(p => p.id === item.productId);
+          if (product && updatedDiscounts.hasOwnProperty(product.category)) {
+            const newDiscount = updatedDiscounts[product.category];
+            const finalPrice = item.price * (1 - newDiscount/100) * item.quantity;
+            
+            return {
+              ...item,
+              discount: newDiscount,
+              discountType: 'category',
+              finalPrice: parseFloat(finalPrice.toFixed(2))
+            };
+          }
+          
+          // For other items, recalculate using the standard logic
+          return calculateItemDiscounts(item, updatedParty);
+        });
         
-        // For other items, recalculate using the standard logic
-        return calculateItemDiscounts(item, updatedParty);
-      });
-      
-      setLineItems(updatedItems);
-      
-      // Show success message
-      setSuccessMessage('Category discounts updated successfully');
+        setLineItems(updatedItems);
+        
+        // Show success message
+        setSuccessMessage('Category discounts updated and saved to party successfully');
+        setLoading(false);
+      } catch (error) {
+        console.error('Error updating party category discounts:', error);
+        setError('Failed to update category discounts. Please try again.');
+        setLoading(false);
+      }
     }
   };
   
@@ -796,27 +812,37 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
               alignItems: 'flex-start',
               mb: 2
             }}>
-              <FormControl fullWidth size="small" error={!selectedPartyId}>
-                <InputLabel>Party</InputLabel>
-                <Select
-                  value={selectedPartyId}
-                  label="Party"
-                  onChange={(e: SelectChangeEvent) => setSelectedPartyId(e.target.value)}
-                  disabled={loadingParties}
-                  required
-                >
-                  {parties.map(party => (
-                    <MenuItem key={party.id} value={party.id}>
-                      {party.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-                {!selectedPartyId && (
-                  <Typography variant="caption" color="error">
-                    Please select a party
-                  </Typography>
+              <Autocomplete
+                fullWidth
+                options={parties}
+                getOptionLabel={(option) => option.name}
+                value={selectedParty}
+                onChange={(_, newValue) => {
+                  setSelectedPartyId(newValue?.id || '');
+                }}
+                disabled={loadingParties}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Search Party"
+                    size="small"
+                    error={!selectedPartyId}
+                    helperText={!selectedPartyId ? "Please select a party" : ""}
+                    required
+                  />
                 )}
-              </FormControl>
+                filterOptions={(options, state) => {
+                  const inputValue = state.inputValue.toLowerCase().trim();
+                  return options.filter(option => 
+                    option.name.toLowerCase().includes(inputValue) ||
+                    (option.phone && option.phone.includes(inputValue)) ||
+                    (option.email && option.email.toLowerCase().includes(inputValue))
+                  );
+                }}
+                loading={loadingParties}
+                loadingText="Loading parties..."
+                noOptionsText="No parties found"
+              />
               
               <Button 
                 variant="outlined" 

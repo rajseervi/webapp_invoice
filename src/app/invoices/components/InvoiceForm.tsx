@@ -492,21 +492,37 @@ export default function InvoiceForm({ onSuccess, invoiceId }: InvoiceFormProps) 
             gap: 1,
             alignItems: 'flex-start'
           }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Party</InputLabel>
-              <Select
-                value={selectedPartyId}
-                label="Party"
-                onChange={(e: SelectChangeEvent) => setSelectedPartyId(e.target.value)}
-                disabled={loadingParties}
-              >
-                {parties.map(party => (
-                  <MenuItem key={party.id} value={party.id}>
-                    {party.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Autocomplete
+              fullWidth
+              options={parties}
+              getOptionLabel={(option) => option.name}
+              value={selectedParty}
+              onChange={(_, newValue) => {
+                setSelectedPartyId(newValue?.id || '');
+              }}
+              disabled={loadingParties}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Search Party"
+                  size="small"
+                  error={!selectedPartyId}
+                  helperText={!selectedPartyId ? "Please select a party" : ""}
+                  required
+                />
+              )}
+              filterOptions={(options, state) => {
+                const inputValue = state.inputValue.toLowerCase().trim();
+                return options.filter(option => 
+                  option.name.toLowerCase().includes(inputValue) ||
+                  (option.phone && option.phone.includes(inputValue)) ||
+                  (option.email && option.email.toLowerCase().includes(inputValue))
+                );
+              }}
+              loading={loadingParties}
+              loadingText="Loading parties..."
+              noOptionsText="No parties found"
+            />
             
             <Button 
               variant="outlined" 

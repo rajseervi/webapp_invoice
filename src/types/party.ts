@@ -7,6 +7,7 @@ export interface Party {
   gstin?: string;
   creditLimit?: number;
   outstandingBalance?: number;
+  categoryDiscounts?: Record<string, number>;
   createdAt: string;
   updatedAt: string;
 }

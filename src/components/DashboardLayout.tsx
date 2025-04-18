@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { handleLogout } from '@/utils/authRedirects'; 
+import { initializeCollections } from '@/utils/initializeCollections';
 import {
   Box,
   Drawer,
@@ -50,6 +51,7 @@ import {
   LocalShipping as LocalShippingIcon,
   Brightness4 as Brightness4Icon,
   Brightness7 as Brightness7Icon,
+  Link as LinkIcon,
 } from '@mui/icons-material';
 import CompanyInfoDisplay from './CompanyInfoDisplay'; 
 
@@ -78,6 +80,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const notificationsMenuOpen = Boolean(notificationsAnchorEl);
   const [notificationCount, setNotificationCount] = useState(3);
   
+  // Initialize collections when the dashboard loads
+  useEffect(() => {
+    initializeCollections().catch(err => {
+      console.error('Error initializing collections:', err);
+    });
+  }, []);
+
   // Check if path is active and expand parent menu if needed
   useEffect(() => {
     if (pathname.startsWith('/sales') || pathname.startsWith('/invoices')) {
@@ -130,6 +139,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       text: 'Parties', 
       icon: <People color={pathname.includes('/parties') ? 'primary' : 'inherit'} />, 
       path: '/parties',
+      badge: null,
+      roles: ['admin', 'manager', 'user'] // Available to all roles
+    },
+    { 
+      text: 'Quick Links', 
+      icon: <LinkIcon color={pathname.includes('/quick-links') ? 'primary' : 'inherit'} />, 
+      path: '/quick-links',
       badge: null,
       roles: ['admin', 'manager', 'user'] // Available to all roles
     },

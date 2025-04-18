@@ -1,9 +1,10 @@
 "use client"
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import ExcelImportExport from '@/components/products/ExcelImportExport';
 import ExportAllProducts from '@/components/products/ExportAllProducts';
 import ExportSelectedProducts from '@/components/products/ExportSelectedProducts';
+import CategoryPriceUpdate from '@/components/products/CategoryPriceUpdate';
 import {
   Container,
   Typography,
@@ -30,7 +31,16 @@ import {
   MenuItem,
   CircularProgress,
   Alert,
-  Checkbox
+  Checkbox,
+  Grid,
+  Slider,
+  Tooltip,
+  Divider,
+  Autocomplete,
+  InputAdornment,
+  Snackbar,
+  List,
+  ListItemButton
 } from '@mui/material';
 import { RemoveDuplicatesButton } from '@/components/Common/RemoveDuplicatesButton';
 import {
@@ -38,7 +48,11 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Search as SearchIcon,
-  FilterList as FilterListIcon
+  FilterList as FilterListIcon,
+  Clear as ClearIcon,
+  TuneOutlined as TuneIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
 import {
   collection,
@@ -75,14 +89,53 @@ interface Category {
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const categoryPriceUpdateRef = React.useRef<any>(null);
+  const searchDebounceTimeout = React.useRef<NodeJS.Timeout | null>(null);
+  // Search and filter state
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
+  const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
+  const [stockRange, setStockRange] = useState<[number, number]>([0, 1000]);
+  
+  // Dialog state
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  
+  // Category batch edit dialog state
+  const [categoryBatchEditOpen, setCategoryBatchEditOpen] = useState(false);
+  const [selectedCategoryForBatch, setSelectedCategoryForBatch] = useState<string>('');
+  const [productsInSelectedCategory, setProductsInSelectedCategory] = useState<Product[]>([]);
+  const [batchEditFields, setBatchEditFields] = useState({
+    price: {
+      enabled: false,
+      value: 0,
+      action: 'percentage' as 'percentage' | 'fixed'
+    },
+    stock: {
+      enabled: false,
+      value: 0,
+      action: 'percentage' as 'percentage' | 'fixed'
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  // Using a Set for faster lookups
+  const [selectedProductsSet, setSelectedProductsSet] = useState<Set<string>>(new Set());
+  // Keep array version for compatibility with existing code
+  const selectedProducts = useMemo(() => Array.from(selectedProductsSet), [selectedProductsSet]);
   const [bulkCategoryDialogOpen, setBulkCategoryDialogOpen] = useState(false);
   const [selectedBulkCategory, setSelectedBulkCategory] = useState('');
+  // Snackbar state for success messages
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error' | 'info' | 'warning';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
 
   // Pagination state
   const [page, setPage] = useState(0);
@@ -92,7 +145,32 @@ export default function ProductsPage() {
 
   // Filter state
   const [categoryFilter, setCategoryFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'in-stock' | 'low-stock'>('all');
   const [isFirstPage, setIsFirstPage] = useState(true);
+  
+  // Sorting state
+  type SortField = 'name' | 'category' | 'price' | 'stock' | '';
+  const [sortField, setSortField] = useState<SortField>('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  
+  // Column filter state
+  const [columnFilters, setColumnFilters] = useState<{
+    name: string;
+    category: string;
+    price: [number, number];
+    stock: [number, number];
+    status: string;
+  }>({
+    name: '',
+    category: '',
+    price: [0, 10000],
+    stock: [0, 1000],
+    status: ''
+  });
+  
+  // Column filter dialog state
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+  const [activeFilterColumn, setActiveFilterColumn] = useState<string>('');
 
   const [newProduct, setNewProduct] = useState({
     name: '',
@@ -110,41 +188,35 @@ export default function ProductsPage() {
       const snapshot = await getCountFromServer(coll);
       const totalProducts = snapshot.data().count;
 
-      if (!searchTerm && !categoryFilter) {
-        // If no filters, use the total count
+      if (!isSearchActive() && !categoryFilter) {
+        // If no filters or search, use the total count
         setTotalCount(totalProducts);
+      } else if (categoryFilter && !isSearchActive()) {
+        // If only category filter is active, we can use a more efficient query
+        const categoryQuery = query(collection(db, 'products'), where('category', '==', categoryFilter));
+        const categorySnapshot = await getCountFromServer(categoryQuery);
+        setTotalCount(categorySnapshot.data().count);
       } else {
-        // If there are filters, we need to get all products and filter them
-        // This is not efficient for large datasets, but Firestore doesn't support
-        // full-text search natively
-        const allProductsQuery = query(collection(db, 'products'));
-        const allProductsSnapshot = await getDocs(allProductsQuery);
-
-        // Filter products based on search term and category
-        const filteredCount = allProductsSnapshot.docs.filter(doc => {
-          const data = doc.data();
-
-          // Check if product matches search term
-          const matchesSearch = !searchTerm || (
-            data.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            data.category.toLowerCase().includes(searchTerm.toLowerCase())
-          );
-
-          // Check if product matches category filter
-          const matchesCategory = !categoryFilter || data.category === categoryFilter;
-
-          // Product must match both filters
-          return matchesSearch && matchesCategory;
-        }).length;
-
-        setTotalCount(filteredCount);
+        // If search is active, we'll use the length of the filtered products array
+        // This is handled in the fetchProducts function, which sets the products state
+        // We don't need to set totalCount here as it won't be used for pagination
+        // when search is active
+        
+        // However, we still need to fetch the count for category filter
+        if (categoryFilter && !searchTerm) {
+          const categoryQuery = query(collection(db, 'products'), where('category', '==', categoryFilter));
+          const categorySnapshot = await getCountFromServer(categoryQuery);
+          setTotalCount(categorySnapshot.data().count);
+        }
       }
     } catch (error) {
       console.error('Error fetching total count:', error);
     }
   };
 
-  // Fetch products with pagination, search, and category filtering
+
+
+  // Fetch products with pagination, search, and filtering
   const fetchProducts = async (reset = false) => {
     try {
       setLoading(true);
@@ -170,8 +242,13 @@ export default function ProductsPage() {
         setIsFirstPage(true);
       }
 
-      // Add limit
-      queryConstraints.push(limit(rowsPerPage));
+      // Add limit - don't limit results when search is active
+      if (!isSearchActive()) {
+        queryConstraints.push(limit(rowsPerPage));
+      } else {
+        // When search is active, fetch more results but still limit to avoid performance issues
+        queryConstraints.push(limit(100)); // Fetch up to 100 results when searching
+      }
 
       // Create the query
       let productsQuery = query(productsRef, ...queryConstraints);
@@ -199,12 +276,44 @@ export default function ProductsPage() {
         };
       });
 
-      // If there's a search term, filter the results client-side
-      if (searchTerm) {
-        productsList = productsList.filter(product =>
-          product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          product.category.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+      // Apply client-side filtering based on search term and other filters
+      if (searchTerm || statusFilter !== 'all' || priceRange[0] > 0 || priceRange[1] < 10000 || stockRange[0] > 0 || stockRange[1] < 1000) {
+        productsList = productsList.filter(product => {
+          // Search term filtering
+          let matchesSearch = true;
+          if (searchTerm) {
+            const termLower = searchTerm.toLowerCase();
+            matchesSearch = 
+              product.name.toLowerCase().includes(termLower) ||
+              product.category.toLowerCase().includes(termLower);
+          }
+
+          // Status filtering
+          let matchesStatus = true;
+          if (statusFilter !== 'all') {
+            matchesStatus = statusFilter === 'low-stock' 
+              ? product.stock < 10 
+              : product.stock >= 10;
+          }
+
+          // Price range filtering
+          const matchesPrice = 
+            product.price >= priceRange[0] && 
+            product.price <= priceRange[1];
+
+          // Stock range filtering
+          const matchesStock = 
+            product.stock >= stockRange[0] && 
+            product.stock <= stockRange[1];
+
+          // Product must match all filters
+          return matchesSearch && matchesStatus && matchesPrice && matchesStock;
+        });
+        
+        // When search is active, update the total count to match the filtered results
+        if (isSearchActive()) {
+          setTotalCount(productsList.length);
+        }
 
         // If we got fewer results than expected, try to fetch more
         if (productsList.length < rowsPerPage && productsSnapshot.docs.length === rowsPerPage && lastVisibleDoc) {
@@ -220,7 +329,7 @@ export default function ProductsPage() {
           // Add ordering and pagination
           nextPageConstraints.push(orderBy('name'));
           nextPageConstraints.push(startAfter(lastVisibleDoc));
-          nextPageConstraints.push(limit(rowsPerPage));
+          nextPageConstraints.push(limit(rowsPerPage * 2)); // Fetch more to increase chances of finding matches
 
           // Create the query
           const nextPageQuery = query(
@@ -244,11 +353,38 @@ export default function ProductsPage() {
                 };
               });
 
-              // Filter and add to current results
-              const filteredNextPage = nextPageProducts.filter(product =>
-                product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                product.category.toLowerCase().includes(searchTerm.toLowerCase())
-              );
+              // Apply the same filters to the next page results
+              const filteredNextPage = nextPageProducts.filter(product => {
+                // Search term filtering
+                let matchesSearch = true;
+                if (searchTerm) {
+                  const termLower = searchTerm.toLowerCase();
+                  matchesSearch = 
+                    product.name.toLowerCase().includes(termLower) ||
+                    product.category.toLowerCase().includes(termLower);
+                }
+
+                // Status filtering
+                let matchesStatus = true;
+                if (statusFilter !== 'all') {
+                  matchesStatus = statusFilter === 'low-stock' 
+                    ? product.stock < 10 
+                    : product.stock >= 10;
+                }
+
+                // Price range filtering
+                const matchesPrice = 
+                  product.price >= priceRange[0] && 
+                  product.price <= priceRange[1];
+
+                // Stock range filtering
+                const matchesStock = 
+                  product.stock >= stockRange[0] && 
+                  product.stock <= stockRange[1];
+
+                // Product must match all filters
+                return matchesSearch && matchesStatus && matchesPrice && matchesStock;
+              });
 
               if (filteredNextPage.length > 0) {
                 // Update last visible for pagination
@@ -263,17 +399,30 @@ export default function ProductsPage() {
         }
       }
       
+      // Generate search suggestions based on the current products
+      if (searchTerm) {
+        generateSearchSuggestions(searchTerm);
+      } 
       // Always set products regardless of search term
       setProducts(productsList);
       setError(null);
     }
     catch (err: any) {
       console.error('Error fetching products:', err);
-      setError('Failed to fetch products. Please try again later.');
+      // More detailed error message with error code if available
+      const errorMessage = err.code 
+        ? `Failed to fetch products (${err.code}). Please try again later.` 
+        : 'Failed to fetch products. Please try again later.';
+      setError(errorMessage);
+      
+      // If the error is related to Firebase permissions or authentication, we can handle it specifically
+      if (err.code === 'permission-denied' || err.code === 'unauthenticated') {
+        // You might want to trigger a re-authentication here or show a specific message
+        console.log('Authentication or permission issue detected');
+      }
     } finally {
       setLoading(false);
     }
-
   };
 
   // Fetch categories
@@ -314,10 +463,53 @@ export default function ProductsPage() {
     }
   };;
 
-  // Initial data fetch
+  // Initial data fetch and load saved preferences
   useEffect(() => {
+    // Load saved rows per page preference
+    try {
+      const savedRowsPerPage = localStorage.getItem('productsRowsPerPage');
+      if (savedRowsPerPage) {
+        const parsedValue = parseInt(savedRowsPerPage, 10);
+        if (!isNaN(parsedValue) && parsedValue > 0 && parsedValue <= 100) {
+          setRowsPerPage(parsedValue);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading rows per page preference:', error);
+    }
+    
     fetchData(true);
   }, []);
+  
+  // Handle URL parameters for category filtering and batch editing
+  useEffect(() => {
+    // Only run this effect after products are loaded and not during loading
+    if (products.length === 0 || loading) return;
+    
+    // Check for URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const categoryParam = urlParams.get('category');
+    const batchEditParam = urlParams.get('batchEdit');
+    const priceUpdateParam = urlParams.get('priceUpdate');
+    
+    if (categoryParam) {
+      // Set category filter
+      setCategoryFilter(categoryParam);
+      
+      // If batch edit is requested, open the batch edit dialog
+      if (batchEditParam === 'true') {
+        handleOpenCategoryBatchEdit(categoryParam);
+      }
+      
+      // If price update is requested, open the price update dialog
+      if (priceUpdateParam === 'true' && categoryPriceUpdateRef.current) {
+        // Small delay to ensure the component is fully mounted
+        setTimeout(() => {
+          categoryPriceUpdateRef.current.handleOpenWithCategory(categoryParam);
+        }, 100);
+      }
+    }
+  }, [products, loading]);
 
   // Fetch data when page, rowsPerPage, or searchTerm changes
   useEffect(() => {
@@ -328,30 +520,32 @@ export default function ProductsPage() {
     }
   }, [page, rowsPerPage]);
 
-  // Reset pagination and fetch data when search term changes
+  // We no longer need this effect as search is handled directly in handleSearch
+  // with debouncing and dynamic fetching
+
+  // Reset pagination and fetch data when filters change
   useEffect(() => {
-    // We'll implement debouncing to avoid too many requests
+    // Reset to first page when filters change
+    setPage(0);
+    setIsFirstPage(true);
+
+    // Fetch data with the new filters
+    fetchData(true);
+  }, [categoryFilter, statusFilter]);
+  
+  // Handle advanced filter changes with debounce
+  useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
-      // Reset to first page when search term changes
+      // Reset to first page when advanced filters change
       setPage(0);
       setIsFirstPage(true);
 
-      // Fetch data with the new search term
+      // Fetch data with the new advanced filters
       fetchData(true);
     }, 500); // 500ms delay
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm]);
-
-  // Reset pagination and fetch data when category filter changes
-  useEffect(() => {
-    // Reset to first page when category filter changes
-    setPage(0);
-    setIsFirstPage(true);
-
-    // Fetch data with the new category filter
-    fetchData(true);
-  }, [categoryFilter]);
+  }, [priceRange, stockRange]);
 
   // Handle page change
   const handleChangePage = (event: unknown, newPage: number) => {
@@ -371,20 +565,430 @@ export default function ProductsPage() {
     setRowsPerPage(newRowsPerPage);
     setPage(0); // Reset to first page
     setIsFirstPage(true);
+    
+    // Save the preference to localStorage for persistence
+    try {
+      localStorage.setItem('productsRowsPerPage', newRowsPerPage.toString());
+    } catch (error) {
+      console.error('Error saving rows per page preference:', error);
+    }
+  };
+  
+  // Check if search or advanced filters are active
+  const isSearchActive = () => {
+    return (
+      searchTerm !== '' || 
+      priceRange[0] > 0 || 
+      priceRange[1] < 10000 || 
+      stockRange[0] > 0 || 
+      stockRange[1] < 1000 ||
+      statusFilter !== 'all'
+    );
+  };
+  
+  // Custom rows per page input handler
+  const [customRowsPerPage, setCustomRowsPerPage] = useState<string>('');
+  const [showCustomRowsInput, setShowCustomRowsInput] = useState(false);
+  
+  const handleCustomRowsPerPageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setCustomRowsPerPage(event.target.value);
+  };
+  
+  const applyCustomRowsPerPage = () => {
+    const value = parseInt(customRowsPerPage, 10);
+    if (!isNaN(value) && value > 0 && value <= 100) {
+      setRowsPerPage(value);
+      setPage(0);
+      setIsFirstPage(true);
+      setShowCustomRowsInput(false);
+      
+      // Save the preference to localStorage
+      try {
+        localStorage.setItem('productsRowsPerPage', value.toString());
+      } catch (error) {
+        console.error('Error saving rows per page preference:', error);
+      }
+    }
   };
 
+  // Fetch products dynamically as user types
+  const fetchDynamicSearchResults = async (term: string) => {
+    if (!term || term.length < 2) {
+      // If search term is too short, just fetch regular paginated data
+      fetchData(true);
+      setSearchSuggestions([]);
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      // Base collection reference
+      const productsRef = collection(db, 'products');
+      
+      // We'll fetch a larger set of products to search through
+      // This is more efficient than fetching all products for large datasets
+      let searchQuery = query(productsRef, limit(500));
+      
+      // If category filter is active, apply it to narrow down results
+      if (categoryFilter) {
+        searchQuery = query(productsRef, where('category', '==', categoryFilter), limit(500));
+      }
+      
+      const productsSnapshot = await getDocs(searchQuery);
+      
+      // Map the documents to our product objects
+      let allProducts = productsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.name,
+          category: data.category,
+          price: data.price || 0,
+          stock: data.stock || 0,
+          status: data.stock < 10 ? 'Low Stock' : 'In Stock'
+        };
+      });
+      
+      // Client-side search
+      const termLower = term.toLowerCase();
+      
+      // Filter products based on search term
+      const searchResults = allProducts.filter(product => {
+        const nameMatch = product.name.toLowerCase().includes(termLower);
+        const categoryMatch = product.category.toLowerCase().includes(termLower);
+        
+        // Apply other filters
+        const matchesStatus = statusFilter === 'all' ? true : 
+          statusFilter === 'low-stock' ? product.stock < 10 : product.stock >= 10;
+          
+        const matchesPrice = 
+          product.price >= priceRange[0] && 
+          product.price <= priceRange[1];
+          
+        const matchesStock = 
+          product.stock >= stockRange[0] && 
+          product.stock <= stockRange[1];
+        
+        // Return true if product matches all criteria
+        return (nameMatch || categoryMatch) && matchesStatus && matchesPrice && matchesStock;
+      });
+      
+      // Debug log to see what's happening
+      console.log(`Search term: "${term}" found ${searchResults.length} matches out of ${allProducts.length} products`);
+      
+      if (searchResults.length === 0) {
+        console.log("WARNING: No search results found!");
+      } else {
+        console.log(`First result: ${searchResults[0].name}`);
+      }
+      
+      // Update state with the search results
+      setProducts(searchResults);
+      
+      // Update total count for display purposes
+      setTotalCount(searchResults.length);
+      
+      // Clear suggestions to hide the suggestions box
+      setSearchSuggestions([]);
+      
+      // Clear column filters to avoid double filtering
+      setColumnFilters({
+        name: '',
+        category: '',
+        price: [0, 10000],
+        stock: [0, 1000],
+        status: ''
+      });
+      
+      setLoading(false);
+      
+    } catch (error) {
+      console.error('Error in dynamic search:', error);
+      setError('Error searching products. Please try again.');
+      setLoading(false);
+    }
+  };
+
+  // Handle search input changes
   const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(event.target.value);
-    // The useEffect hook with debounce will handle the pagination reset and data fetching
+    const value = event.target.value;
+    setSearchTerm(value);
+    
+    // Reset to first page
+    setPage(0);
+    setIsFirstPage(true);
+    
+    // If clearing the search, fetch regular data
+    if (!value) {
+      fetchData(true);
+      setSearchSuggestions([]);
+      return;
+    }
+    
+    // Generate suggestions as user types (only if we have products loaded)
+    if (products.length > 0 && value.length >= 2) {
+      const termLower = value.toLowerCase();
+      const suggestions = new Set<string>();
+      
+      // Get suggestions from product names and categories
+      products.forEach(product => {
+        // Add product name if it contains the search term
+        if (product.name.toLowerCase().includes(termLower)) {
+          suggestions.add(product.name);
+        }
+        
+        // Add category if it contains the search term
+        if (product.category && product.category.toLowerCase().includes(termLower)) {
+          suggestions.add(product.category);
+        }
+      });
+      
+      // Update suggestions
+      setSearchSuggestions(Array.from(suggestions).slice(0, 5));
+    } else {
+      // Clear suggestions if search term is too short
+      setSearchSuggestions([]);
+    }
+    
+    // Debounce the actual search to avoid too many requests
+    if (searchDebounceTimeout.current) {
+      clearTimeout(searchDebounceTimeout.current);
+    }
+    
+    searchDebounceTimeout.current = setTimeout(() => {
+      console.log(`Executing search for: "${value}"`);
+      // Hide suggestions when performing the search
+      setSearchSuggestions([]);
+      fetchDynamicSearchResults(value);
+    }, 300); // 300ms debounce
   };
 
   const handleCategoryFilter = (event: any) => {
-    setCategoryFilter(event.target.value as string);
-    // The useEffect hook will handle the pagination reset and data fetching
+    const newCategoryFilter = event.target.value as string;
+    setCategoryFilter(newCategoryFilter);
+    
+    // If search is active, use dynamic search with the new category filter
+    if (searchTerm.length >= 2) {
+      // Small delay to ensure state is updated
+      setTimeout(() => {
+        fetchDynamicSearchResults(searchTerm);
+      }, 10);
+    }
+    // Otherwise, the useEffect hook will handle pagination reset and data fetching
+  };
+  
+  const handleStatusFilter = (event: React.ChangeEvent<{ value: unknown }>) => {
+    setStatusFilter(event.target.value as 'all' | 'in-stock' | 'low-stock');
+    
+    // If search is active, use dynamic search with the new status filter
+    if (searchTerm.length >= 2) {
+      // Small delay to ensure state is updated
+      setTimeout(() => {
+        fetchDynamicSearchResults(searchTerm);
+      }, 10);
+    }
+    // Otherwise, the useEffect hook will handle pagination reset and data fetching
+  };
+  
+  const handlePriceRangeChange = (event: Event, newValue: number | number[]) => {
+    setPriceRange(newValue as [number, number]);
+    
+    // If search is active, use dynamic search with the new price range
+    if (searchTerm.length >= 2) {
+      // Use debounce for range sliders to avoid too many requests
+      if (searchDebounceTimeout.current) {
+        clearTimeout(searchDebounceTimeout.current);
+      }
+      
+      searchDebounceTimeout.current = setTimeout(() => {
+        fetchDynamicSearchResults(searchTerm);
+      }, 300);
+    }
+  };
+  
+  const handleStockRangeChange = (event: Event, newValue: number | number[]) => {
+    setStockRange(newValue as [number, number]);
+    
+    // If search is active, use dynamic search with the new stock range
+    if (searchTerm.length >= 2) {
+      // Use debounce for range sliders to avoid too many requests
+      if (searchDebounceTimeout.current) {
+        clearTimeout(searchDebounceTimeout.current);
+      }
+      
+      searchDebounceTimeout.current = setTimeout(() => {
+        fetchDynamicSearchResults(searchTerm);
+      }, 300);
+    }
+  };
+  
+  const handleToggleAdvancedSearch = () => {
+    setAdvancedSearchOpen(!advancedSearchOpen);
+  };
+  
+  const handleClearFilters = () => {
+    // Clear all filters
+    setSearchTerm('');
+    setCategoryFilter('');
+    setStatusFilter('all');
+    setPriceRange([0, 10000]);
+    setStockRange([0, 1000]);
+    setAdvancedSearchOpen(false);
+    setSearchSuggestions([]);
+    
+    // Clear column filters
+    setColumnFilters({
+      name: '',
+      category: '',
+      price: [0, 10000],
+      stock: [0, 1000],
+      status: ''
+    });
+    
+    // Reset to first page
+    setPage(0);
+    setIsFirstPage(true);
+    
+    // Fetch data with cleared filters
+    fetchData(true);
+  };
+  
+  // Handle sorting when a column header is clicked
+  const handleSort = (field: SortField) => {
+    // If clicking the same field, toggle direction
+    if (field === sortField) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // If clicking a new field, set it as the sort field with 'asc' direction
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    
+    // Reset to first page when sorting changes
+    setPage(0);
+    setIsFirstPage(true);
+  };
+  
+  // Apply sorting to the products list
+  const sortProducts = (products: Product[]) => {
+    if (!sortField) return products;
+    
+    return [...products].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortField) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'category':
+          comparison = a.category.localeCompare(b.category);
+          break;
+        case 'price':
+          comparison = a.price - b.price;
+          break;
+        case 'stock':
+          comparison = a.stock - b.stock;
+          break;
+        default:
+          return 0;
+      }
+      
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  };
+  
+  // Open column filter dialog
+  const handleOpenColumnFilter = (column: string) => {
+    setActiveFilterColumn(column);
+    setFilterDialogOpen(true);
+  };
+  
+  // Apply column filter
+  const handleApplyColumnFilter = (column: string, value: any) => {
+    setColumnFilters({
+      ...columnFilters,
+      [column]: value
+    });
+    
+    setFilterDialogOpen(false);
+    
+    // Reset to first page when filter changes
+    setPage(0);
+    setIsFirstPage(true);
+  };
+  
+  // Clear a specific column filter
+  const handleClearColumnFilter = (column: string) => {
+    const defaultValues: any = {
+      name: '',
+      category: '',
+      price: [0, 10000],
+      stock: [0, 1000],
+      status: ''
+    };
+    
+    setColumnFilters({
+      ...columnFilters,
+      [column]: defaultValues[column]
+    });
+    
+    // Reset to first page when filter changes
+    setPage(0);
+    setIsFirstPage(true);
   };
 
-  // Products are already filtered in the fetchProducts function
-  const filteredProducts = products;
+  // Apply column filters and sorting to products
+  const filteredProducts = useMemo(() => {
+    // Debug log to see what's happening with products
+    console.log(`Filtering ${products.length} products with column filters`);
+    
+    // First apply column filters
+    let filtered = products.filter(product => {
+      // Name filter
+      if (columnFilters.name && !product.name.toLowerCase().includes(columnFilters.name.toLowerCase())) {
+        return false;
+      }
+      
+      // Category filter (from column filter)
+      if (columnFilters.category && product.category !== columnFilters.category) {
+        return false;
+      }
+      
+      // Price range filter
+      if (product.price < columnFilters.price[0] || product.price > columnFilters.price[1]) {
+        return false;
+      }
+      
+      // Stock range filter
+      if (product.stock < columnFilters.stock[0] || product.stock > columnFilters.stock[1]) {
+        return false;
+      }
+      
+      // Status filter (from column filter)
+      if (columnFilters.status) {
+        const productStatus = product.stock < 10 ? 'low-stock' : 'in-stock';
+        if (productStatus !== columnFilters.status) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+    
+    // Debug log to see filtered results
+    console.log(`After column filtering: ${filtered.length} products remain`);
+    
+    // Then apply sorting
+    const sortedProducts = sortProducts(filtered);
+    
+    // If we're searching and no results are found, log it
+    if (searchTerm && sortedProducts.length === 0) {
+      console.log(`WARNING: Search term "${searchTerm}" returned 0 results after filtering`);
+    }
+    
+    return sortedProducts;
+  }, [products, columnFilters, sortField, sortDirection, searchTerm]);
 
   const handleAddProduct = () => {
     setSelectedProduct(null);
@@ -407,9 +1011,144 @@ export default function ProductsPage() {
     });
     setOpenDialog(true);
   };
+  
+  // Open category batch edit dialog
+  const handleOpenCategoryBatchEdit = (categoryName: string) => {
+    setSelectedCategoryForBatch(categoryName);
+    
+    // Reset batch edit fields
+    setBatchEditFields({
+      price: {
+        enabled: false,
+        value: 0,
+        action: 'percentage'
+      },
+      stock: {
+        enabled: false,
+        value: 0,
+        action: 'percentage'
+      }
+    });
+    
+    // Filter products by the selected category
+    const categoryProducts = products.filter(product => product.category === categoryName);
+    setProductsInSelectedCategory(categoryProducts);
+    
+    // Open the dialog
+    setCategoryBatchEditOpen(true);
+  };
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
+  };
+  
+  // Close category batch edit dialog
+  const handleCloseCategoryBatchEdit = () => {
+    setCategoryBatchEditOpen(false);
+  };
+  
+  // Handle batch field change
+  const handleBatchFieldChange = (field: 'price' | 'stock', property: 'enabled' | 'value' | 'action', value: any) => {
+    setBatchEditFields(prev => ({
+      ...prev,
+      [field]: {
+        ...prev[field],
+        [property]: value
+      }
+    }));
+  };
+  
+  // Execute batch update for products in category
+  const handleCategoryBatchUpdate = async () => {
+    // Check if any field is enabled for update
+    if (!batchEditFields.price.enabled && !batchEditFields.stock.enabled) {
+      setSnackbar({
+        open: true,
+        message: 'Please enable at least one field to update',
+        severity: 'warning'
+      });
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      // Create an array of update promises
+      const updatePromises = productsInSelectedCategory.map(async (product) => {
+        const productRef = doc(db, 'products', product.id);
+        const updates: { price?: number; stock?: number } = {};
+        
+        // Calculate new price if enabled
+        if (batchEditFields.price.enabled) {
+          if (batchEditFields.price.action === 'percentage') {
+            // Percentage change
+            const percentageChange = (Number(batchEditFields.price.value) || 0) / 100;
+            updates.price = Math.max(0, product.price * (1 + percentageChange));
+          } else {
+            // Fixed value
+            updates.price = Number(batchEditFields.price.value) || 0;
+          }
+          // Round to 2 decimal places
+          updates.price = Math.round(updates.price * 100) / 100;
+        }
+        
+        // Calculate new stock if enabled
+        if (batchEditFields.stock.enabled) {
+          if (batchEditFields.stock.action === 'percentage') {
+            // Percentage change
+            const percentageChange = (Number(batchEditFields.stock.value) || 0) / 100;
+            updates.stock = Math.max(0, Math.round(product.stock * (1 + percentageChange)));
+          } else {
+            // Fixed value
+            updates.stock = Math.round(Number(batchEditFields.stock.value) || 0);
+          }
+        }
+        
+        // Update in Firestore
+        await updateDoc(productRef, updates);
+        
+        return {
+          id: product.id,
+          ...updates
+        };
+      });
+      
+      const results = await Promise.all(updatePromises);
+      
+      // Update local state
+      setProducts(prevProducts => 
+        prevProducts.map(product => {
+          const updated = results.find(result => result.id === product.id);
+          if (updated) {
+            return {
+              ...product,
+              ...(updated.price !== undefined ? { price: updated.price } : {}),
+              ...(updated.stock !== undefined ? { stock: updated.stock } : {})
+            };
+          }
+          return product;
+        })
+      );
+      
+      // Show success message
+      setSnackbar({
+        open: true,
+        message: `Successfully updated ${results.length} products in ${selectedCategoryForBatch} category`,
+        severity: 'success'
+      });
+      
+      // Close the dialog
+      handleCloseCategoryBatchEdit();
+    } catch (err) {
+      console.error('Error updating products:', err);
+      setSnackbar({
+        open: true,
+        message: 'Failed to update products. Please try again.',
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
@@ -515,13 +1254,26 @@ export default function ProductsPage() {
       // Refresh the data after update
       fetchProducts(page === 0);
 
-      setSelectedProducts([]);
+      // Clear selection and close dialog
+      setSelectedProductsSet(new Set());
       setBulkCategoryDialogOpen(false);
       setSelectedBulkCategory('');
       setError(null);
+      
+      // Show success message
+      setSnackbar({
+        open: true,
+        message: `Successfully updated ${selectedProducts.length} product${selectedProducts.length > 1 ? 's' : ''} to category "${selectedBulkCategory}"`,
+        severity: 'success'
+      });
     } catch (err) {
       console.error('Error updating categories:', err);
       setError('Failed to update categories. Please try again.');
+      setSnackbar({
+        open: true,
+        message: 'Failed to update categories. Please try again.',
+        severity: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -536,6 +1288,7 @@ export default function ProductsPage() {
           <Typography variant="h5">Products</Typography>
           <Box sx={{ display: 'flex', gap: 2 }}>
             <ExcelImportExport onSuccess={fetchData} />
+            <CategoryPriceUpdate ref={categoryPriceUpdateRef} onSuccess={fetchData} />
             <ExportAllProducts />
             <RemoveDuplicatesButton onSuccess={fetchData} />
             <Button
@@ -554,28 +1307,101 @@ export default function ProductsPage() {
           </Alert>
         )}
 
-        <Paper sx={{ p: 2, mb: 3 }}>
-          <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-            <TextField
-              label="Search Products"
-              variant="outlined"
-              size="small"
-              fullWidth
-              value={searchTerm}
-              onChange={handleSearch}
-              InputProps={{
-                startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-              }}
-            />
+        <Paper sx={{ p: 3, mb: 3 }}>
+          {/* Search and Basic Filters */}
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, mb: 3 }}>
+            {/* Improved Search Box with Suggestions */}
+            <Box sx={{ position: 'relative', flexGrow: 1 }}>
+              <TextField
+                label="Search Products"
+                variant="outlined"
+                size="small"
+                fullWidth
+                value={searchTerm}
+                onChange={handleSearch}
+                placeholder="Search by name or category..."
+                InputProps={{
+                  startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
+                  endAdornment: (
+                    <>
+                      {loading && searchTerm && (
+                        <CircularProgress size={20} sx={{ mr: 1 }} />
+                      )}
+                      {searchTerm && (
+                        <IconButton 
+                          size="small" 
+                          onClick={() => {
+                            // Clear search and fetch regular data
+                            setSearchTerm('');
+                            setSearchSuggestions([]);
+                            
+                            // Reset to first page
+                            setPage(0);
+                            setIsFirstPage(true);
+                            
+                            // Fetch regular data
+                            fetchData(true);
+                            
+                            console.log("Search cleared, fetching regular data");
+                          }}
+                          aria-label="Clear search"
+                        >
+                          <ClearIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                    </>
+                  )
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    // Trigger search on Enter key
+                    e.preventDefault();
+                    // The useEffect hook will handle the data fetching
+                  }
+                }}
+              />
+              
+              {/* Search Suggestions - only show while typing, not after search is performed */}
+              {searchSuggestions.length > 0 && searchTerm && !loading && (
+                <Paper 
+                  sx={{ 
+                    position: 'absolute', 
+                    width: '100%', 
+                    zIndex: 10,
+                    mt: 0.5,
+                    maxHeight: 300,
+                    overflow: 'auto',
+                    boxShadow: 3
+                  }}
+                >
+                  <List dense>
+                    {searchSuggestions.map((suggestion, index) => (
+                      <ListItemButton 
+                        key={index}
+                        onClick={() => {
+                          setSearchTerm(suggestion);
+                          setSearchSuggestions([]);
+                          // Trigger search immediately with the selected suggestion
+                          fetchDynamicSearchResults(suggestion);
+                        }}
+                      >
+                        <Typography variant="body2">{suggestion}</Typography>
+                      </ListItemButton>
+                    ))}
+                  </List>
+                </Paper>
+              )}
+            </Box>
+            
+            {/* Category Filter */}
             <FormControl variant="outlined" size="small" sx={{ minWidth: 200 }}>
-              <InputLabel id="category-filter-label">Filter by Category</InputLabel>
+              <InputLabel id="category-filter-label">Category</InputLabel>
               <Select
                 labelId="category-filter-label"
                 id="category-filter"
                 value={categoryFilter}
                 onChange={handleCategoryFilter}
-                label="Filter by Category"
-                startAdornment={<FilterListIcon sx={{ mr: 1, color: 'text.secondary' }} />}
+                label="Category"
               >
                 <MenuItem value="">
                   <em>All Categories</em>
@@ -587,17 +1413,176 @@ export default function ProductsPage() {
                 ))}
               </Select>
             </FormControl>
+            
+            {/* Status Filter */}
+            <FormControl variant="outlined" size="small" sx={{ minWidth: 150 }}>
+              <InputLabel id="status-filter-label">Status</InputLabel>
+              <Select
+                labelId="status-filter-label"
+                id="status-filter"
+                value={statusFilter}
+                onChange={handleStatusFilter}
+                label="Status"
+              >
+                <MenuItem value="all">All Status</MenuItem>
+                <MenuItem value="in-stock">In Stock</MenuItem>
+                <MenuItem value="low-stock">Low Stock</MenuItem>
+              </Select>
+            </FormControl>
+            
+            {/* Advanced Search Toggle */}
             <Button
               variant="outlined"
+              onClick={handleToggleAdvancedSearch}
               startIcon={<FilterListIcon />}
+              color={advancedSearchOpen ? "primary" : "inherit"}
             >
-              Filter
+              {advancedSearchOpen ? "Hide Filters" : "More Filters"}
             </Button>
+            
+            {/* Clear Filters Button */}
+            <Button
+              variant="text"
+              onClick={handleClearFilters}
+              startIcon={<ClearIcon />}
+              sx={{ display: (searchTerm || categoryFilter || statusFilter !== 'all' || priceRange[0] > 0 || priceRange[1] < 10000 || stockRange[0] > 0 || stockRange[1] < 1000) ? 'flex' : 'none' }}
+            >
+              Clear
+            </Button>
+          </Box>
+          
+          {/* Advanced Search Panel */}
+          {advancedSearchOpen && (
+            <Box 
+              sx={{ 
+                p: 2, 
+                mb: 3, 
+                bgcolor: 'background.default', 
+                borderRadius: 1,
+                border: '1px solid',
+                borderColor: 'divider'
+              }}
+            >
+              <Typography variant="subtitle1" gutterBottom>Advanced Filters</Typography>
+              
+              <Grid container spacing={3}>
+                {/* Price Range */}
+                <Grid item xs={12} md={6}>
+                  <Typography variant="body2" gutterBottom>
+                    Price Range: ${priceRange[0]} - ${priceRange[1]}
+                  </Typography>
+                  <Box sx={{ px: 2 }}>
+                    <Slider
+                      value={priceRange}
+                      onChange={handlePriceRangeChange}
+                      valueLabelDisplay="auto"
+                      min={0}
+                      max={10000}
+                      step={100}
+                    />
+                  </Box>
+                </Grid>
+                
+                {/* Stock Range */}
+                <Grid item xs={12} md={6}>
+                  <Typography variant="body2" gutterBottom>
+                    Stock Range: {stockRange[0]} - {stockRange[1]} units
+                  </Typography>
+                  <Box sx={{ px: 2 }}>
+                    <Slider
+                      value={stockRange}
+                      onChange={handleStockRangeChange}
+                      valueLabelDisplay="auto"
+                      min={0}
+                      max={1000}
+                      step={10}
+                    />
+                  </Box>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+          
+          {/* Active Filters Display */}
+          {(searchTerm || categoryFilter || statusFilter !== 'all' || priceRange[0] > 0 || priceRange[1] < 10000 || stockRange[0] > 0 || stockRange[1] < 1000) && (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+              <Typography variant="body2" sx={{ mr: 1, alignSelf: 'center' }}>
+                Active Filters:
+              </Typography>
+              
+              {searchTerm && (
+                <Chip 
+                  label={`Search: ${searchTerm}`} 
+                  size="small" 
+                  onDelete={() => setSearchTerm('')}
+                  color="primary"
+                  variant="outlined"
+                />
+              )}
+              
+              {categoryFilter && (
+                <Chip 
+                  label={`Category: ${categoryFilter}`} 
+                  size="small" 
+                  onDelete={() => setCategoryFilter('')}
+                  color="primary"
+                  variant="outlined"
+                />
+              )}
+              
+              {statusFilter !== 'all' && (
+                <Chip 
+                  label={`Status: ${statusFilter === 'low-stock' ? 'Low Stock' : 'In Stock'}`} 
+                  size="small" 
+                  onDelete={() => setStatusFilter('all')}
+                  color="primary"
+                  variant="outlined"
+                />
+              )}
+              
+              {(priceRange[0] > 0 || priceRange[1] < 10000) && (
+                <Chip 
+                  label={`Price: $${priceRange[0]} - $${priceRange[1]}`} 
+                  size="small" 
+                  onDelete={() => setPriceRange([0, 10000])}
+                  color="primary"
+                  variant="outlined"
+                />
+              )}
+              
+              {(stockRange[0] > 0 || stockRange[1] < 1000) && (
+                <Chip 
+                  label={`Stock: ${stockRange[0]} - ${stockRange[1]} units`} 
+                  size="small" 
+                  onDelete={() => setStockRange([0, 1000])}
+                  color="primary"
+                  variant="outlined"
+                />
+              )}
+            </Box>
+          )}
+          
+          {/* Action Buttons */}
+          <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+            {/* <Button
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
+              onClick={handleAddProduct}
+            >
+              Add Product
+            </Button>
+             */}
+            {/* <ExcelImportExport onImportComplete={fetchData} />
+            <ExportAllProducts />
+            <RemoveDuplicatesButton onComplete={fetchData} /> */}
+            
             {selectedProducts.length > 0 && (
               <>
                 <ExportSelectedProducts selectedIds={selectedProducts} />
                 <Button
                   variant="contained"
+                  color="secondary"
                   onClick={() => setBulkCategoryDialogOpen(true)}
                 >
                   Update Category ({selectedProducts.length})
@@ -612,62 +1597,210 @@ export default function ProductsPage() {
                 <TableRow>
                   <TableCell padding="checkbox">
                     <Checkbox
-                      indeterminate={selectedProducts.length > 0 && selectedProducts.length < filteredProducts.length}
-                      checked={selectedProducts.length > 0 && selectedProducts.length === filteredProducts.length}
+                      indeterminate={selectedProducts.length > 0 && selectedProducts.length < (searchTerm ? products.length : filteredProducts.length)}
+                      checked={selectedProducts.length > 0 && selectedProducts.length === (searchTerm ? products.length : filteredProducts.length)}
                       onChange={(e) => {
                         if (e.target.checked) {
                           // Select all products on the current page
-                          const allIds = filteredProducts.map(product => product.id);
-                          setSelectedProducts(allIds);
+                          const newSet = new Set(selectedProductsSet);
+                          // Use the appropriate array based on whether we're searching
+                          const productsToUse = searchTerm ? products : filteredProducts;
+                          productsToUse.forEach(product => newSet.add(product.id));
+                          setSelectedProductsSet(newSet);
                         } else {
                           // Deselect all products
-                          setSelectedProducts([]);
+                          // If we want to deselect only the visible products:
+                          const newSet = new Set(selectedProductsSet);
+                          // Use the appropriate array based on whether we're searching
+                          const productsToUse = searchTerm ? products : filteredProducts;
+                          productsToUse.forEach(product => newSet.delete(product.id));
+                          setSelectedProductsSet(newSet);
+                          // If we want to deselect all products:
+                          // setSelectedProductsSet(new Set());
                         }
                       }}
                     />
                   </TableCell>
-                  <TableCell>ID</TableCell>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Category</TableCell>
-                  <TableCell>Price</TableCell>
-                  <TableCell>Stock</TableCell>
-                  <TableCell>Status</TableCell>
+                  
+
+                  
+                  {/* Name Column */}
+                  <TableCell 
+                    onClick={() => handleSort('name')}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Typography variant="subtitle2">Name</Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', ml: 1 }}>
+                        {sortField === 'name' && (
+                          sortDirection === 'asc' ? 
+                            <ExpandLessIcon fontSize="small" color="primary" /> : 
+                            <ExpandMoreIcon fontSize="small" color="primary" />
+                        )}
+                        <IconButton 
+                          size="small" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenColumnFilter('name');
+                          }}
+                          sx={{ p: 0.2 }}
+                        >
+                          <FilterListIcon 
+                            fontSize="small" 
+                            color={columnFilters.name ? "primary" : "action"}
+                          />
+                        </IconButton>
+                      </Box>
+                    </Box>
+                  </TableCell>
+                  
+                  {/* Category Column */}
+                  <TableCell 
+                    onClick={() => handleSort('category')}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Typography variant="subtitle2">Category</Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', ml: 1 }}>
+                        {sortField === 'category' && (
+                          sortDirection === 'asc' ? 
+                            <ExpandLessIcon fontSize="small" color="primary" /> : 
+                            <ExpandMoreIcon fontSize="small" color="primary" />
+                        )}
+                        <IconButton 
+                          size="small" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenColumnFilter('category');
+                          }}
+                          sx={{ p: 0.2 }}
+                        >
+                          <FilterListIcon 
+                            fontSize="small" 
+                            color={columnFilters.category ? "primary" : "action"}
+                          />
+                        </IconButton>
+                      </Box>
+                    </Box>
+                  </TableCell>
+                  
+                  {/* Price Column */}
+                  <TableCell 
+                    onClick={() => handleSort('price')}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Typography variant="subtitle2">Price</Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', ml: 1 }}>
+                        {sortField === 'price' && (
+                          sortDirection === 'asc' ? 
+                            <ExpandLessIcon fontSize="small" color="primary" /> : 
+                            <ExpandMoreIcon fontSize="small" color="primary" />
+                        )}
+                        <IconButton 
+                          size="small" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenColumnFilter('price');
+                          }}
+                          sx={{ p: 0.2 }}
+                        >
+                          <FilterListIcon 
+                            fontSize="small" 
+                            color={(columnFilters.price[0] > 0 || columnFilters.price[1] < 10000) ? "primary" : "action"}
+                          />
+                        </IconButton>
+                      </Box>
+                    </Box>
+                  </TableCell>
+                  
+                  {/* Stock Column */}
+                  <TableCell 
+                    onClick={() => handleSort('stock')}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Typography variant="subtitle2">Stock</Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', ml: 1 }}>
+                        {sortField === 'stock' && (
+                          sortDirection === 'asc' ? 
+                            <ExpandLessIcon fontSize="small" color="primary" /> : 
+                            <ExpandMoreIcon fontSize="small" color="primary" />
+                        )}
+                        <IconButton 
+                          size="small" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenColumnFilter('stock');
+                          }}
+                          sx={{ p: 0.2 }}
+                        >
+                          <FilterListIcon 
+                            fontSize="small" 
+                            color={(columnFilters.stock[0] > 0 || columnFilters.stock[1] < 1000) ? "primary" : "action"}
+                          />
+                        </IconButton>
+                      </Box>
+                    </Box>
+                  </TableCell>
+                  
+                  {/* Status Column */}
+                  <TableCell>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Typography variant="subtitle2">Status</Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', ml: 1 }}>
+                        <IconButton 
+                          size="small" 
+                          onClick={() => handleOpenColumnFilter('status')}
+                          sx={{ p: 0.2 }}
+                        >
+                          <FilterListIcon 
+                            fontSize="small" 
+                            color={columnFilters.status ? "primary" : "action"}
+                          />
+                        </IconButton>
+                      </Box>
+                    </Box>
+                  </TableCell>
+                  
                   <TableCell>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {loading && products.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center">
+                    <TableCell colSpan={6} align="center">
                       <CircularProgress size={24} sx={{ mr: 1 }} />
                       Loading products...
                     </TableCell>
                   </TableRow>
-                ) : filteredProducts.length === 0 ? (
+                ) : (searchTerm && products.length === 0) || (!searchTerm && filteredProducts.length === 0) ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center">No products found</TableCell>
+                    <TableCell colSpan={6} align="center">No products found</TableCell>
                   </TableRow>
                 ) : (
-                  filteredProducts.map((product) => (
+                  // Use products directly when searching, otherwise use filteredProducts
+                  (searchTerm ? products : filteredProducts).map((product) => (
                     <TableRow key={product.id}>
                       <TableCell padding="checkbox">
                         <Checkbox
-                          checked={selectedProducts.includes(product.id)}
+                          checked={selectedProductsSet.has(product.id)}
                           onChange={() => {
-                            const newSelected = [...selectedProducts];
-                            if (newSelected.includes(product.id)) {
+                            // Create a new Set from the current one
+                            const newSet = new Set(selectedProductsSet);
+                            
+                            if (newSet.has(product.id)) {
                               // Remove if already selected
-                              const index = newSelected.indexOf(product.id);
-                              newSelected.splice(index, 1);
+                              newSet.delete(product.id);
                             } else {
                               // Add if not selected
-                              newSelected.push(product.id);
+                              newSet.add(product.id);
                             }
-                            setSelectedProducts(newSelected);
+                            setSelectedProductsSet(newSet);
                           }}
                         />
                       </TableCell>
-                      <TableCell>{product.id.substring(0, 8)}...</TableCell>
+
                       <TableCell>{product.name}</TableCell>
                       <TableCell>{product.category}</TableCell>
                       <TableCell>₹{product.price}</TableCell>
@@ -699,16 +1832,115 @@ export default function ProductsPage() {
           </TableContainer>
 
           {!loading && (
-            <TablePagination
-              component="div"
-              count={totalCount}
-              page={page}
-              onPageChange={handleChangePage}
-              rowsPerPage={rowsPerPage}
-              onRowsPerPageChange={handleChangeRowsPerPage}
-              rowsPerPageOptions={[5, 10, 25, 50]}
-              sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)' }}
-            />
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderTop: '1px solid rgba(224, 224, 224, 1)' }}>
+              {/* Custom Rows Per Page Control - Hide when search is active */}
+              {!isSearchActive() && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Typography variant="body2">Rows per page:</Typography>
+                  
+                  {showCustomRowsInput ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={customRowsPerPage}
+                        onChange={handleCustomRowsPerPageChange}
+                        inputProps={{ 
+                          min: 1, 
+                          max: 100,
+                          style: { width: '60px' }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            applyCustomRowsPerPage();
+                          }
+                        }}
+                        autoFocus
+                      />
+                      <Button 
+                        size="small" 
+                        variant="contained" 
+                        onClick={applyCustomRowsPerPage}
+                      >
+                        Apply
+                      </Button>
+                      <IconButton 
+                        size="small" 
+                        onClick={() => setShowCustomRowsInput(false)}
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  ) : (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Select
+                        value={rowsPerPage}
+                        onChange={handleChangeRowsPerPage}
+                        size="small"
+                        sx={{ minWidth: 80 }}
+                      >
+                        {[5, 10, 25, 50, 100].map((option) => (
+                          <MenuItem key={option} value={option}>
+                            {option}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      <Tooltip title="Custom rows per page">
+                        <IconButton 
+                          size="small" 
+                          onClick={() => {
+                            setCustomRowsPerPage(rowsPerPage.toString());
+                            setShowCustomRowsInput(true);
+                          }}
+                        >
+                          <TuneIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  )}
+                </Box>
+              )}
+              
+              {/* Results Count and Pagination */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Typography variant="body2">
+                  {isSearchActive() ? (
+                    // When search is active, just show total count
+                    `${products.length} results found`
+                  ) : (
+                    // When pagination is active, show page info
+                    `${page * rowsPerPage + 1}-${Math.min((page + 1) * rowsPerPage, totalCount)} of ${totalCount}`
+                  )}
+                </Typography>
+                
+                {/* Pagination Controls - Hide when search is active */}
+                {!isSearchActive() && (
+                  <Box>
+                    <IconButton 
+                      onClick={(e) => handleChangePage(e, page - 1)}
+                      disabled={page === 0}
+                      size="small"
+                      aria-label="Previous page"
+                    >
+                      <svg width="24" height="24" viewBox="0 0 24 24">
+                        <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+                      </svg>
+                    </IconButton>
+                    
+                    <IconButton 
+                      onClick={(e) => handleChangePage(e, page + 1)}
+                      disabled={page >= Math.ceil(totalCount / rowsPerPage) - 1}
+                      size="small"
+                      aria-label="Next page"
+                    >
+                      <svg width="24" height="24" viewBox="0 0 24 24">
+                        <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+                      </svg>
+                    </IconButton>
+                  </Box>
+                )}
+              </Box>
+            </Box>
           )}
         </Paper>
       </Container>
@@ -808,6 +2040,206 @@ export default function ProductsPage() {
           </Button>
         </DialogActions>
       </Dialog>
+      
+      {/* Category Batch Edit Dialog */}
+      <Dialog 
+        open={categoryBatchEditOpen} 
+        onClose={handleCloseCategoryBatchEdit} 
+        maxWidth="md" 
+        fullWidth
+      >
+        <DialogTitle>
+          Batch Update Products in {selectedCategoryForBatch} Category
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            {/* Summary */}
+            <Paper sx={{ p: 2, mb: 3, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
+              <Typography variant="h6">
+                {productsInSelectedCategory.length} products will be updated
+              </Typography>
+              <Typography variant="body2">
+                Select which fields to update and how to update them
+              </Typography>
+            </Paper>
+            
+            {/* Price Update Section */}
+            <Paper sx={{ p: 2, mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Checkbox 
+                  checked={batchEditFields.price.enabled}
+                  onChange={(e) => handleBatchFieldChange('price', 'enabled', e.target.checked)}
+                />
+                <Typography variant="h6" sx={{ flexGrow: 1 }}>
+                  Update Price
+                </Typography>
+              </Box>
+              
+              {batchEditFields.price.enabled && (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, ml: 4 }}>
+                  <FormControl sx={{ minWidth: 150 }}>
+                    <InputLabel>Update Type</InputLabel>
+                    <Select
+                      value={batchEditFields.price.action}
+                      onChange={(e) => handleBatchFieldChange('price', 'action', e.target.value)}
+                      label="Update Type"
+                      size="small"
+                    >
+                      <MenuItem value="percentage">Percentage Change</MenuItem>
+                      <MenuItem value="fixed">Fixed Value</MenuItem>
+                    </Select>
+                  </FormControl>
+                  
+                  <TextField
+                    label={batchEditFields.price.action === 'percentage' ? 'Percentage' : 'Price'}
+                    type="number"
+                    size="small"
+                    value={batchEditFields.price.value}
+                    onChange={(e) => handleBatchFieldChange('price', 'value', parseFloat(e.target.value) || 0)}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          {batchEditFields.price.action === 'percentage' ? '%' : '$'}
+                        </InputAdornment>
+                      )
+                    }}
+                    sx={{ width: 150 }}
+                  />
+                  
+                  {/* Preview */}
+                  <Box sx={{ flexGrow: 1, ml: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Example: $100 → $
+                      {batchEditFields.price.action === 'percentage' 
+                        ? (100 * (1 + (Number(batchEditFields.price.value) || 0) / 100)).toFixed(2)
+                        : (Number(batchEditFields.price.value) || 0).toFixed(2)
+                      }
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+            </Paper>
+            
+            {/* Stock Update Section */}
+            <Paper sx={{ p: 2, mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Checkbox 
+                  checked={batchEditFields.stock.enabled}
+                  onChange={(e) => handleBatchFieldChange('stock', 'enabled', e.target.checked)}
+                />
+                <Typography variant="h6" sx={{ flexGrow: 1 }}>
+                  Update Stock
+                </Typography>
+              </Box>
+              
+              {batchEditFields.stock.enabled && (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, ml: 4 }}>
+                  <FormControl sx={{ minWidth: 150 }}>
+                    <InputLabel>Update Type</InputLabel>
+                    <Select
+                      value={batchEditFields.stock.action}
+                      onChange={(e) => handleBatchFieldChange('stock', 'action', e.target.value)}
+                      label="Update Type"
+                      size="small"
+                    >
+                      <MenuItem value="percentage">Percentage Change</MenuItem>
+                      <MenuItem value="fixed">Fixed Value</MenuItem>
+                    </Select>
+                  </FormControl>
+                  
+                  <TextField
+                    label={batchEditFields.stock.action === 'percentage' ? 'Percentage' : 'Stock'}
+                    type="number"
+                    size="small"
+                    value={batchEditFields.stock.value}
+                    onChange={(e) => handleBatchFieldChange('stock', 'value', parseFloat(e.target.value) || 0)}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          {batchEditFields.stock.action === 'percentage' ? '%' : '#'}
+                        </InputAdornment>
+                      )
+                    }}
+                    sx={{ width: 150 }}
+                  />
+                  
+                  {/* Preview */}
+                  <Box sx={{ flexGrow: 1, ml: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Example: 100 units → 
+                      {batchEditFields.stock.action === 'percentage' 
+                        ? Math.round(100 * (1 + (Number(batchEditFields.stock.value) || 0) / 100))
+                        : Math.round(Number(batchEditFields.stock.value) || 0)
+                      } units
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+            </Paper>
+            
+            {/* Products List */}
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Products in {selectedCategoryForBatch} Category
+            </Typography>
+            
+            <Box sx={{ maxHeight: '300px', overflow: 'auto', mb: 2 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    <TableCell align="right">Current Price</TableCell>
+                    <TableCell align="right">New Price</TableCell>
+                    <TableCell align="right">Current Stock</TableCell>
+                    <TableCell align="right">New Stock</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {productsInSelectedCategory.map((product) => (
+                    <TableRow key={product.id}>
+                      <TableCell>{product.name}</TableCell>
+                      <TableCell align="right">${product.price.toFixed(2)}</TableCell>
+                      <TableCell align="right" sx={{ color: 'secondary.main', fontWeight: 'bold' }}>
+                        {batchEditFields.price.enabled ? (
+                          batchEditFields.price.action === 'percentage' ? (
+                            `$${(product.price * (1 + (Number(batchEditFields.price.value) || 0) / 100)).toFixed(2)}`
+                          ) : (
+                            `$${(Number(batchEditFields.price.value) || 0).toFixed(2)}`
+                          )
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
+                      <TableCell align="right">{product.stock}</TableCell>
+                      <TableCell align="right" sx={{ color: 'secondary.main', fontWeight: 'bold' }}>
+                        {batchEditFields.stock.enabled ? (
+                          batchEditFields.stock.action === 'percentage' ? (
+                            Math.round(product.stock * (1 + (Number(batchEditFields.stock.value) || 0) / 100))
+                          ) : (
+                            Math.round(Number(batchEditFields.stock.value) || 0)
+                          )
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseCategoryBatchEdit}>Cancel</Button>
+          <Button
+            onClick={handleCategoryBatchUpdate}
+            variant="contained"
+            color="primary"
+            disabled={loading || (!batchEditFields.price.enabled && !batchEditFields.stock.enabled)}
+          >
+            {loading ? <CircularProgress size={24} /> : 'Update All Products'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Bulk Category Update Dialog */}
       <Dialog open={bulkCategoryDialogOpen} onClose={() => setBulkCategoryDialogOpen(false)} maxWidth="sm" fullWidth>
@@ -841,6 +2273,231 @@ export default function ProductsPage() {
           </Button>
         </DialogActions>
       </Dialog>
+      {/* Column Filter Dialog */}
+      <Dialog 
+        open={filterDialogOpen} 
+        onClose={() => setFilterDialogOpen(false)} 
+        maxWidth="xs" 
+        fullWidth
+      >
+        <DialogTitle>
+          Filter by {activeFilterColumn.charAt(0).toUpperCase() + activeFilterColumn.slice(1)}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+
+            
+            {/* Name Filter */}
+            {activeFilterColumn === 'name' && (
+              <TextField
+                label="Filter by Name"
+                fullWidth
+                value={columnFilters.name}
+                onChange={(e) => setColumnFilters({
+                  ...columnFilters,
+                  name: e.target.value
+                })}
+                placeholder="Enter name to filter"
+                size="small"
+              />
+            )}
+            
+            {/* Category Filter */}
+            {activeFilterColumn === 'category' && (
+              <FormControl fullWidth size="small">
+                <InputLabel>Filter by Category</InputLabel>
+                <Select
+                  label="Filter by Category"
+                  value={columnFilters.category}
+                  onChange={(e) => setColumnFilters({
+                    ...columnFilters,
+                    category: e.target.value as string
+                  })}
+                >
+                  <MenuItem value="">
+                    <em>All Categories</em>
+                  </MenuItem>
+                  {categories.map((category) => (
+                    <MenuItem key={category.id} value={category.name}>
+                      {category.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+            
+            {/* Price Range Filter */}
+            {activeFilterColumn === 'price' && (
+              <>
+                <Typography variant="body2" gutterBottom>
+                  Price Range: ${columnFilters.price[0]} - ${columnFilters.price[1]}
+                </Typography>
+                <Box sx={{ px: 2, mt: 2, mb: 2 }}>
+                  <Slider
+                    value={columnFilters.price}
+                    onChange={(e, newValue) => setColumnFilters({
+                      ...columnFilters,
+                      price: newValue as [number, number]
+                    })}
+                    valueLabelDisplay="auto"
+                    min={0}
+                    max={10000}
+                    step={100}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  <TextField
+                    label="Min Price"
+                    type="number"
+                    size="small"
+                    value={columnFilters.price[0]}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      if (!isNaN(value) && value >= 0) {
+                        setColumnFilters({
+                          ...columnFilters,
+                          price: [value, columnFilters.price[1]]
+                        });
+                      }
+                    }}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                    }}
+                  />
+                  <TextField
+                    label="Max Price"
+                    type="number"
+                    size="small"
+                    value={columnFilters.price[1]}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      if (!isNaN(value) && value >= columnFilters.price[0]) {
+                        setColumnFilters({
+                          ...columnFilters,
+                          price: [columnFilters.price[0], value]
+                        });
+                      }
+                    }}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                    }}
+                  />
+                </Box>
+              </>
+            )}
+            
+            {/* Stock Range Filter */}
+            {activeFilterColumn === 'stock' && (
+              <>
+                <Typography variant="body2" gutterBottom>
+                  Stock Range: {columnFilters.stock[0]} - {columnFilters.stock[1]} units
+                </Typography>
+                <Box sx={{ px: 2, mt: 2, mb: 2 }}>
+                  <Slider
+                    value={columnFilters.stock}
+                    onChange={(e, newValue) => setColumnFilters({
+                      ...columnFilters,
+                      stock: newValue as [number, number]
+                    })}
+                    valueLabelDisplay="auto"
+                    min={0}
+                    max={1000}
+                    step={10}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  <TextField
+                    label="Min Stock"
+                    type="number"
+                    size="small"
+                    value={columnFilters.stock[0]}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      if (!isNaN(value) && value >= 0) {
+                        setColumnFilters({
+                          ...columnFilters,
+                          stock: [value, columnFilters.stock[1]]
+                        });
+                      }
+                    }}
+                  />
+                  <TextField
+                    label="Max Stock"
+                    type="number"
+                    size="small"
+                    value={columnFilters.stock[1]}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      if (!isNaN(value) && value >= columnFilters.stock[0]) {
+                        setColumnFilters({
+                          ...columnFilters,
+                          stock: [columnFilters.stock[0], value]
+                        });
+                      }
+                    }}
+                  />
+                </Box>
+              </>
+            )}
+            
+            {/* Status Filter */}
+            {activeFilterColumn === 'status' && (
+              <FormControl fullWidth size="small">
+                <InputLabel>Filter by Status</InputLabel>
+                <Select
+                  label="Filter by Status"
+                  value={columnFilters.status}
+                  onChange={(e) => setColumnFilters({
+                    ...columnFilters,
+                    status: e.target.value as string
+                  })}
+                >
+                  <MenuItem value="">
+                    <em>All Status</em>
+                  </MenuItem>
+                  <MenuItem value="in-stock">In Stock</MenuItem>
+                  <MenuItem value="low-stock">Low Stock</MenuItem>
+                </Select>
+              </FormControl>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => handleClearColumnFilter(activeFilterColumn)}
+            color="secondary"
+          >
+            Clear Filter
+          </Button>
+          <Button onClick={() => setFilterDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => setFilterDialogOpen(false)}
+            variant="contained"
+            color="primary"
+          >
+            Apply
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Success/Error Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </DashboardLayout>
   );
 };
