@@ -114,9 +114,20 @@ const CategoryDiscountEditor: React.FC<CategoryDiscountEditorProps> = ({
     }
   }, [open, categoryDiscounts]);
 
+  // Create a ref for the input field
+  const discountInputRef = React.useRef<HTMLInputElement>(null);
+  
   const handleStartEditing = (categoryId: string, currentDiscount: number) => {
     setEditingCategoryId(categoryId);
     setEditValue(currentDiscount);
+    
+    // Focus and select the input field after the state has been updated
+    setTimeout(() => {
+      if (discountInputRef.current) {
+        discountInputRef.current.focus();
+        discountInputRef.current.select();
+      }
+    }, 100);
   };
 
   const handleCancelEditing = () => {
@@ -125,14 +136,21 @@ const CategoryDiscountEditor: React.FC<CategoryDiscountEditorProps> = ({
   };
 
   const handleSaveDiscount = (categoryId: string) => {
+    // Ensure the discount value is valid (between 0 and 100)
+    const validDiscount = Math.min(100, Math.max(0, editValue));
+    
     // Update the discount in the local state
     setDiscounts(prevDiscounts => 
       prevDiscounts.map(item => 
         item.categoryId === categoryId 
-          ? { ...item, discount: editValue } 
+          ? { ...item, discount: validDiscount } 
           : item
       )
     );
+    
+    // Log for debugging
+    const categoryName = discounts.find(item => item.categoryId === categoryId)?.categoryName || '';
+    console.log(`Saving discount for category "${categoryName}" (ID: ${categoryId}): ${validDiscount}%`);
     
     setEditingCategoryId(null);
   };
@@ -150,6 +168,9 @@ const CategoryDiscountEditor: React.FC<CategoryDiscountEditorProps> = ({
         console.log(`Setting discount for category "${item.categoryName}": ${item.discount}%`);
       }
     });
+    
+    // Log the final discount object
+    console.log('Final category discounts:', updatedDiscounts);
     
     onSave(updatedDiscounts);
     onClose();
@@ -212,10 +233,33 @@ const CategoryDiscountEditor: React.FC<CategoryDiscountEditorProps> = ({
                           type="number"
                           size="small"
                           value={editValue}
-                          onChange={(e) => setEditValue(Number(e.target.value))}
-                          inputProps={{ min: 0, max: 100, step: 0.5 }}
+                          onChange={(e) => {
+                            // Parse the value, default to 0 if empty or NaN
+                            let value = Number(e.target.value);
+                            if (isNaN(value)) value = 0;
+                            
+                            // Ensure value is between 0 and 100
+                            value = Math.min(100, Math.max(0, value));
+                            
+                            setEditValue(value);
+                          }}
+                          onFocus={(e) => e.target.select()} // Select all text when focused
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleSaveDiscount(item.categoryId);
+                            } else if (e.key === 'Escape') {
+                              handleCancelEditing();
+                            }
+                          }}
+                          inputProps={{ 
+                            min: 0, 
+                            max: 100, 
+                            step: 0.5,
+                            // Add aria-label for accessibility
+                            'aria-label': `Discount percentage for ${item.categoryName}`
+                          }}
                           sx={{ width: 100 }}
-                          autoFocus
+                          inputRef={discountInputRef}
                         />
                       ) : (
                         <Typography 
