@@ -31,7 +31,7 @@ import { redirectBasedOnRole, handleLoginError, getCallbackUrl } from '@/utils/a
 
 export default function Login() {
   const router = useRouter();
-  const { login, currentUser, userRole, userStatus } = useAuth();
+  const { login, loginWithGoogle, currentUser, userRole, userStatus } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -179,8 +179,8 @@ export default function Login() {
         await setPersistence(auth, browserSessionPersistence);
       }
       
-      // Use the loginWithGoogle function from the existing auth context
-      const role = await useAuth().loginWithGoogle();
+      // Use the loginWithGoogle function from the auth context we already have
+      const role = await loginWithGoogle();
       
       // Show success message
       setSuccessMessage('Google login successful! Redirecting...');

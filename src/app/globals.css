@@ -120,3 +120,68 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Print styles */
+@media print {
+  /* Hide navigation, buttons, and other UI elements */
+  header, nav, footer, button, .no-print {
+    display: none !important;
+  }
+  
+  /* Reset page margins and background */
+  body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #000;
+  }
+  
+  /* Ensure all text is visible */
+  * {
+    color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* Set page size and margins */
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+  
+  /* Ensure proper page breaks */
+  table {
+    page-break-inside: avoid;
+  }
+  
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+  
+  img {
+    page-break-inside: avoid;
+  }
+  
+  /* Ensure links are readable */
+  a {
+    text-decoration: none;
+    color: #000;
+  }
+  
+  /* Ensure proper container sizing */
+  .MuiContainer-root {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+  
+  /* Remove box shadows */
+  .MuiPaper-elevation, .MuiPaper-outlined {
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+  }
+}

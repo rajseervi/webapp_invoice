@@ -212,8 +212,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const handleLogoutClick = async () => {
-    setLoading(true);
-    
     try {
       // Use the utility function for logout
       await handleLogout(
@@ -221,12 +219,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         router,
         () => {
           // Actions to perform before logout
-          setAnchorEl(null);
-          setMobileOpen(false);
+          setProfileAnchorEl(null);
+          setNotificationsAnchorEl(null);
         }
       );
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.error('Logout error:', error);
+      router.push('/login');
     }
   };
   
@@ -382,7 +381,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 Settings
               </MenuItem>
               <Divider />
-              <MenuItem onClick={handleLogout}>
+              <MenuItem onClick={handleLogoutClick}>
                 <ListItemIcon>
                   <LogoutIcon fontSize="small" color="error" />
                 </ListItemIcon>

@@ -79,11 +79,52 @@ export default function UserDashboard() {
   const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   
+  const [error, setError] = useState<string | null>(null);
+  
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         setLoading(true);
+        setError(null);
         
+        // Try to get data from cache first
+        const cachedStats = localStorage.getItem('user_dashboard_stats');
+        const cachedInvoices = localStorage.getItem('user_dashboard_invoices');
+        
+        if (cachedStats && cachedInvoices) {
+          try {
+            const parsedStats = JSON.parse(cachedStats);
+            const parsedInvoices = JSON.parse(cachedInvoices);
+            
+            // Check if cache is still valid (less than 5 minutes old)
+            const now = Date.now();
+            if (parsedStats.timestamp && (now - parsedStats.timestamp < 5 * 60 * 1000)) {
+              setStats(parsedStats.data);
+              setRecentInvoices(parsedInvoices.data);
+              setLoading(false);
+              
+              // Fetch fresh data in the background
+              setTimeout(() => fetchFreshData(false), 100);
+              return;
+            }
+          } catch (cacheError) {
+            console.error('Error parsing cached data:', cacheError);
+            // Continue with fresh fetch if cache parsing fails
+          }
+        }
+        
+        // If no valid cache, fetch fresh data
+        await fetchFreshData(true);
+        
+      } catch (err) {
+        console.error('Error in dashboard data flow:', err);
+        setError('Failed to fetch dashboard data. Please try again later.');
+        setLoading(false);
+      }
+    };
+    
+    const fetchFreshData = async (updateLoadingState: boolean) => {
+      try {
         // Fetch invoices count and recent invoices
         const invoicesCollection = collection(db, 'invoices');
         const invoicesSnapshot = await getDocs(invoicesCollection);
@@ -109,17 +150,35 @@ export default function UserDashboard() {
         const partiesCount = partiesSnapshot.size;
         
         // Update state
-        setStats({
+        const newStats = {
           totalInvoices: invoicesCount,
           totalParties: partiesCount,
-        });
+        };
         
+        setStats(newStats);
         setRecentInvoices(recentInvoicesList);
         
+        // Cache the data with timestamp
+        localStorage.setItem('user_dashboard_stats', JSON.stringify({
+          data: newStats,
+          timestamp: Date.now()
+        }));
+        
+        localStorage.setItem('user_dashboard_invoices', JSON.stringify({
+          data: recentInvoicesList,
+          timestamp: Date.now()
+        }));
+        
+        setError(null);
       } catch (err) {
         console.error('Error fetching user dashboard data:', err);
+        if (updateLoadingState) {
+          setError('Failed to fetch dashboard data. Please try again later.');
+        }
       } finally {
-        setLoading(false);
+        if (updateLoadingState) {
+          setLoading(false);
+        }
       }
     };
     
@@ -140,6 +199,36 @@ export default function UserDashboard() {
         <Typography variant="body1" color="text.secondary">
           Loading dashboard...
         </Typography>
+      </Box>
+    );
+  }
+  
+  // Import the QuickLinks component
+  const QuickLinks = React.lazy(() => import('./QuickLinks'));
+  
+  if (error) {
+    return (
+      <Box sx={{ width: '100%', p: { xs: 2, sm: 3 } }}>
+        <Alert 
+          severity="error" 
+          sx={{ mb: 3, borderRadius: 2 }}
+          action={
+            <Button 
+              color="inherit" 
+              size="small"
+              onClick={() => window.location.reload()}
+            >
+              Retry
+            </Button>
+          }
+        >
+          {error}
+        </Alert>
+        
+        {/* Still show QuickLinks even if dashboard data failed to load */}
+        <React.Suspense fallback={<Box sx={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CircularProgress /></Box>}>
+          <QuickLinks />
+        </React.Suspense>
       </Box>
     );
   }
@@ -183,7 +272,12 @@ export default function UserDashboard() {
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Tooltip title="Refresh data">
             <IconButton 
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                setLoading(true);
+                localStorage.removeItem('user_dashboard_stats');
+                localStorage.removeItem('user_dashboard_invoices');
+                window.location.reload();
+              }}
               sx={{ 
                 bgcolor: alpha(theme.palette.primary.main, 0.1),
                 '&:hover': {
@@ -244,6 +338,11 @@ export default function UserDashboard() {
         </Alert>
       )}
     
+      {/* Quick Links Section */}
+      <React.Suspense fallback={<Box sx={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CircularProgress /></Box>}>
+        <QuickLinks />
+      </React.Suspense>
+      
       {/* Stats Cards - Grid Layout */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         {/* Subscription Card */}

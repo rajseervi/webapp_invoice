@@ -23,11 +23,13 @@ import {
   DialogContentText,
   DialogActions,
   Alert,
-  Snackbar
+  Snackbar,
+  Divider
 } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { collection, getDocs, orderBy, query, deleteDoc, doc, limit, startAfter, getCountFromServer } from 'firebase/firestore';
 import { db } from '@/firebase/config';
+import InvoicePrintButton from './components/InvoicePrintButton';
 
 interface Invoice {
   id: string;
@@ -232,6 +234,10 @@ export default function InvoicesPage() {
                             >
                               View
                             </Button>
+                            <InvoicePrintButton 
+                              invoiceId={invoice.id} 
+                              invoiceNumber={invoice.invoiceNumber} 
+                            />
                             <IconButton
                               size="small"
                               color="primary"

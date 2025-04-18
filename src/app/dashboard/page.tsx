@@ -22,44 +22,66 @@ export default function Dashboard() {
       try {
         setLoading(true);
         
-        // Verify authentication status
-        const authResponse = await fetch('/api/auth/verify', {
-          headers: {
-            'Accept': 'application/json'
-          }
-        });
+        // Verify authentication status with retry logic
+        let authData;
+        let retries = 3;
         
-        // Check if the response is JSON
-        const contentType = authResponse.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
+        while (retries > 0) {
           try {
-            const authData = await authResponse.json();
+            const authResponse = await fetch('/api/auth/verify', {
+              headers: {
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache'
+              }
+            });
             
-            if (!authData.authenticated) {
-              console.error('User is not authenticated:', authData.message || 'No authentication data');
-              router.push('/login?callbackUrl=' + encodeURIComponent('/dashboard'));
+            // Check if the response is JSON
+            const contentType = authResponse.headers.get('content-type');
+            
+            if (contentType && contentType.includes('application/json')) {
+              authData = await authResponse.json();
+              break; // Successfully got JSON data, exit the retry loop
+            } else {
+              // Wait a moment before retrying
+              await new Promise(resolve => setTimeout(resolve, 500));
+              retries--;
+              
+              if (retries === 0) {
+                // Handle non-JSON response after all retries
+                console.error('Received non-JSON response from auth verify endpoint');
+                try {
+                  const text = await authResponse.text();
+                  console.error('Response text:', text.substring(0, 200) + '...');
+                  console.error('Status code:', authResponse.status);
+                  console.error('Content-Type:', contentType);
+                } catch (textError) {
+                  console.error('Error reading response text:', textError);
+                }
+                
+                setError('Authentication service unavailable. Please try refreshing the page or clearing your browser cookies.');
+                setLoading(false);
+                return;
+              }
+            }
+          } catch (fetchError) {
+            console.error('Error fetching auth status:', fetchError);
+            retries--;
+            
+            if (retries === 0) {
+              setError('Failed to connect to authentication service. Please check your internet connection and try again.');
+              setLoading(false);
               return;
             }
-          } catch (jsonError) {
-            console.error('Error parsing JSON response:', jsonError);
-            setError('Failed to process authentication response. Please try refreshing the page.');
-            setLoading(false);
-            return;
+            
+            // Wait a moment before retrying
+            await new Promise(resolve => setTimeout(resolve, 500));
           }
-        } else {
-          // Handle non-JSON response (likely HTML error page)
-          console.error('Received non-JSON response from auth verify endpoint');
-          try {
-            const text = await authResponse.text();
-            console.error('Response text:', text.substring(0, 200) + '...');
-            console.error('Status code:', authResponse.status);
-            console.error('Content-Type:', contentType);
-          } catch (textError) {
-            console.error('Error reading response text:', textError);
-          }
-          
-          setError('Authentication service unavailable. Please try refreshing the page or clearing your browser cookies.');
-          setLoading(false);
+        }
+        
+        // Check authentication result
+        if (!authData || !authData.authenticated) {
+          console.error('User is not authenticated:', authData?.message || 'No authentication data');
+          router.push('/login?callbackUrl=' + encodeURIComponent('/dashboard'));
           return;
         }
         

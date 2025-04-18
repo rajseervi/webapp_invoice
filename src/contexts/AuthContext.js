@@ -63,6 +63,8 @@ export function AuthProvider({ children }) {
   const [subscriptionData, setSubscriptionData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  
+
   async function login(email, password) {
     try {
       if (!email || !password) {

@@ -26,7 +26,8 @@ import {
   Person as PersonIcon,
   ShoppingCart as ShoppingCartIcon,
   Summarize as SummarizeIcon,
-  Download as DownloadIcon
+  Download as DownloadIcon,
+  Print as PrintIcon
 } from '@mui/icons-material';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/firebase/config';
@@ -126,6 +127,17 @@ export default function InvoiceDetailPage() {
             size="small"
           >
             Edit
+          </Button>
+          
+          <Button
+            component={Link}
+            href={`/invoices/${id}/print`}
+            startIcon={<PrintIcon />}
+            variant="outlined"
+            size="small"
+            color="secondary"
+          >
+            Print View
           </Button>
           
           <InvoicePDF invoice={invoice} />

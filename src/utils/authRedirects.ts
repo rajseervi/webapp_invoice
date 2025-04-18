@@ -167,12 +167,3 @@ export function clearClientAuthData(): void {
   }
 }
 
-/**
- * Handles the logout process with proper cleanup
- * 
- * @param logoutFunction - The logout function from AuthContext
- * @param router - Next.js router instance
- * @param onBeforeLogout - Optional callback to run before logout
- * @param redirectUrl - Optional URL to redirect to after logout (defaults to '/login')
- */ 
- 

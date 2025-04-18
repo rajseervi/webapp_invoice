@@ -17,7 +17,6 @@ import {
 } from '@mui/material';
 import { useAuth } from '@/contexts/AuthContext';
 import { handleLogout } from '@/utils/authRedirects';
-import { handleLogout } from '@/utils/authRedirects';
 
 import { styled } from '@mui/material/styles';
 import {
@@ -98,7 +97,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       );
     } catch (error) {
       console.error('Logout error:', error);
-      router.push('/login');
       router.push('/login');
     }
   };

@@ -15,6 +15,7 @@ function clearAuthCookies() {
       sameSite: 'lax' as 'lax' | 'strict' | 'none',
     };
     
+    // Use direct cookies() calls without await
     cookies().delete('session', cookieOptions);
     cookies().delete('userRole', cookieOptions);
     cookies().delete('userStatus', cookieOptions);
@@ -26,13 +27,25 @@ function clearAuthCookies() {
     
     return NextResponse.json(
       { success: true, message: 'Logged out successfully' },
-      { status: 200 }
+      { 
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, max-age=0'
+        }
+      }
     );
   } catch (error) {
     console.error('Error clearing cookies:', error);
     return NextResponse.json(
-{ success: false, message: 'Error during logout process' },
-      { status: 500 }
+      { success: false, message: 'Error during logout process' },
+      { 
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, max-age=0'
+        }
+      }
     );
   }
 }

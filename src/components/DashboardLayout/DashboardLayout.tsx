@@ -40,6 +40,8 @@ import {
   AccountCircle as AccountCircleIcon,
 } from '@mui/icons-material';
 import { useRouter, usePathname } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { handleLogout } from '@/utils/authRedirects';
 import ThemeToggle from '../ThemeToggle';
 
 const drawerWidth = 240;
@@ -65,6 +67,10 @@ const menuItems = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const theme = useTheme();
+  const router = useRouter();
+  const pathname = usePathname();
+  const { currentUser } = useAuth();
+  
   const [open, setOpen] = useState(true);
   const [expandedMenus, setExpandedMenus] = useState<{ [key: string]: boolean }>({
     Inventory: true // Default expanded state
@@ -77,9 +83,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { id: 3, message: "Payment confirmed", read: true },
     { id: 4, message: "New user registered", read: true }
   ]);
-  
-  const router = useRouter();
-  const pathname = usePathname();
   
   // Handle window resize to collapse sidebar on small screens
   useEffect(() => {
@@ -125,10 +128,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     handleProfileMenuClose();
   };
   
-  const handleLogout = () => {
-    // Implement logout logic here
-    console.log('Logout clicked');
-    handleProfileMenuClose();
+  const handleLogout = async () => {
+    try {
+      const { logout } = useAuth();
+      
+      // Use the utility function for logout
+      await handleLogout(
+        logout,
+        router,
+        handleProfileMenuClose
+      );
+    } catch (error) {
+      console.error('Logout error:', error);
+      router.push('/login');
+    }
   };
   
   const unreadNotificationsCount = notifications.filter(n => !n.read).length;

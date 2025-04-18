@@ -29,7 +29,8 @@ import {
   Snackbar,
   Chip,
   Divider,
-  Tooltip
+  Tooltip,
+  Badge
 } from '@mui/material';
 import { 
   Delete as DeleteIcon, 
@@ -151,6 +152,9 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
   
   // Category discount editor
   const [openCategoryDiscountEditor, setOpenCategoryDiscountEditor] = useState(false);
+  
+  // New party category discount editor
+  const [openNewPartyCategoryDiscountEditor, setOpenNewPartyCategoryDiscountEditor] = useState(false);
 
   // Fetch existing invoice data if editing
   useEffect(() => {
@@ -384,6 +388,17 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
       [name]: value
     }));
   };
+  
+  // Handler for updating new party's category discounts
+  const handleUpdateNewPartyCategoryDiscounts = (updatedDiscounts: Record<string, number>) => {
+    setNewParty(prev => ({
+      ...prev,
+      categoryDiscounts: updatedDiscounts
+    }));
+    
+    // Show success message
+    setSuccessMessage('Category discounts updated for new party');
+  };
 
   const handleCreateParty = async () => {
     if (!newParty.name) {
@@ -418,7 +433,14 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
       setSelectedPartyId(partyRef.id);
       setOpenPartyDialog(false);
       setError(null);
-      setSuccessMessage('Party created successfully');
+      
+      // Show success message with discount info if any discounts were set
+      const discountCount = Object.keys(newParty.categoryDiscounts).length;
+      if (discountCount > 0) {
+        setSuccessMessage(`Party created successfully with ${discountCount} category discount${discountCount > 1 ? 's' : ''}`);
+      } else {
+        setSuccessMessage('Party created successfully');
+      }
     } catch (err) {
       console.error('Error creating party:', err);
       setError(getFirestoreErrorMessage(err));
@@ -766,43 +788,78 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
             Party Information
           </Typography>
           
-          <Box sx={{ 
-            display: 'flex', 
-            gap: 1,
-            alignItems: 'flex-start',
-            mb: 3
-          }}>
-            <FormControl fullWidth size="small" error={!selectedPartyId}>
-              <InputLabel>Party</InputLabel>
-              <Select
-                value={selectedPartyId}
-                label="Party"
-                onChange={(e: SelectChangeEvent) => setSelectedPartyId(e.target.value)}
-                disabled={loadingParties}
-                required
+          <Box sx={{ mb: 3 }}>
+            {/* Party Selection Row */}
+            <Box sx={{ 
+              display: 'flex', 
+              gap: 1,
+              alignItems: 'flex-start',
+              mb: 2
+            }}>
+              <FormControl fullWidth size="small" error={!selectedPartyId}>
+                <InputLabel>Party</InputLabel>
+                <Select
+                  value={selectedPartyId}
+                  label="Party"
+                  onChange={(e: SelectChangeEvent) => setSelectedPartyId(e.target.value)}
+                  disabled={loadingParties}
+                  required
+                >
+                  {parties.map(party => (
+                    <MenuItem key={party.id} value={party.id}>
+                      {party.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+                {!selectedPartyId && (
+                  <Typography variant="caption" color="error">
+                    Please select a party
+                  </Typography>
+                )}
+              </FormControl>
+              
+              <Button 
+                variant="outlined" 
+                onClick={handleOpenPartyDialog}
+                size="small"
+                sx={{ minWidth: 'auto', whiteSpace: 'nowrap' }}
+                startIcon={<PersonIcon />}
               >
-                {parties.map(party => (
-                  <MenuItem key={party.id} value={party.id}>
-                    {party.name}
-                  </MenuItem>
-                ))}
-              </Select>
-              {!selectedPartyId && (
-                <Typography variant="caption" color="error">
-                  Please select a party
-                </Typography>
-              )}
-            </FormControl>
+                New Party
+              </Button>
+            </Box>
             
-            <Button 
-              variant="outlined" 
-              onClick={handleOpenPartyDialog}
-              size="small"
-              sx={{ minWidth: 'auto', whiteSpace: 'nowrap' }}
-              startIcon={<PersonIcon />}
-            >
-              New Party
-            </Button>
+            {/* Category Discounts Button Row */}
+            {selectedPartyId && (
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'flex-end', 
+                bgcolor: 'background.paper', 
+                p: 1, 
+                borderRadius: 1,
+                border: '1px dashed',
+                borderColor: 'divider'
+              }}>
+                <Tooltip title="Set discount percentages for product categories for this party">
+                  <Badge 
+                    badgeContent={selectedParty ? Object.keys(selectedParty.categoryDiscounts).length : 0} 
+                    color="primary"
+                    showZero
+                    sx={{ '& .MuiBadge-badge': { right: -3, top: 3 } }}
+                  >
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => setOpenCategoryDiscountEditor(true)}
+                      startIcon={<PercentIcon />}
+                      color="primary"
+                    >
+                      Edit Category Discounts
+                    </Button>
+                  </Badge>
+                </Tooltip>
+              </Box>
+            )}
           </Box>
           
           {selectedParty && (
@@ -847,17 +904,6 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
                           />
                         )
                       ))}
-                      
-                      <Button 
-                        size="small" 
-                        variant="outlined" 
-                        color="primary" 
-                        startIcon={<PercentIcon />}
-                        onClick={() => setOpenCategoryDiscountEditor(true)}
-                        sx={{ mt: 1 }}
-                      >
-                        Edit Category Discounts
-                      </Button>
                     </Box>
                   </Box>
                 )}
@@ -880,61 +926,7 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
         
         {/* Products Tab */}
         <TabPanel value={activeTab} index={1}>
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: { xs: 'column', sm: 'row' }, 
-            gap: 2, 
-            mb: 3,
-            alignItems: 'flex-start'
-          }}>
-            <Autocomplete
-              fullWidth
-              options={products}
-              getOptionLabel={(product) => `${product.name} - ₹${product.price}`}
-              renderOption={(props, product) => (
-                <Box component="li" {...props} key={product.id}>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, width: '100%' }}>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {product.name}
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                      <Typography variant="body2" color="primary" sx={{ fontWeight: 500 }}>
-                        ₹{product.price.toFixed(2)}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Category: {product.category || 'N/A'}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Box>
-              )}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Search Products"
-                  disabled={loadingProducts}
-                  placeholder="Type to search..."
-                  size="small"
-                />
-              )}
-              onChange={(_, product) => setSelectedProductId(product ? product.id : '')}
-              value={products.find(p => p.id === selectedProductId) || null}
-              loading={loadingProducts}
-              loadingText="Loading products..."
-              noOptionsText="No products found"
-            />
-            
-            <Button 
-              variant="contained" 
-              startIcon={<AddIcon />}
-              onClick={handleAddProduct}
-              disabled={!selectedProductId}
-              size="small"
-              sx={{ minWidth: 'auto', alignSelf: { xs: 'stretch', sm: 'flex-start' } }}
-            >
-              Add
-            </Button>
-          </Box>
+         
           
           <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto', maxHeight: { xs: 400, sm: 'none' }, mb: 2 }}>
             <Table sx={{ minWidth: 650 }} size="small">
@@ -1017,6 +1009,63 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
               </TableBody>
             </Table>
           </TableContainer>
+          
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' }, 
+            gap: 2, 
+            mb: 3,
+            alignItems: 'flex-start'
+          }}>
+            <Autocomplete
+              fullWidth
+              options={products}
+              getOptionLabel={(product) => `${product.name} - ₹${product.price}`}
+              renderOption={(props, product) => (
+                <Box component="li" {...props} key={product.id}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, width: '100%' }}>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {product.name}
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                      <Typography variant="body2" color="primary" sx={{ fontWeight: 500 }}>
+                        ₹{product.price.toFixed(2)}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Category: {product.category || 'N/A'}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Search Products"
+                  disabled={loadingProducts}
+                  placeholder="Type to search..."
+                  size="small"
+                />
+              )}
+              onChange={(_, product) => setSelectedProductId(product ? product.id : '')}
+              value={products.find(p => p.id === selectedProductId) || null}
+              loading={loadingProducts}
+              loadingText="Loading products..."
+              noOptionsText="No products found"
+            />
+            
+            <Button 
+              variant="contained" 
+              startIcon={<AddIcon />}
+              onClick={handleAddProduct}
+              disabled={!selectedProductId}
+              size="small"
+              sx={{ minWidth: 'auto', alignSelf: { xs: 'stretch', sm: 'flex-start' } }}
+            >
+              Add
+            </Button>
+          </Box>
+
           
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
             <Button
@@ -1164,7 +1213,7 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
       </Paper>
       
       {/* Party Creation Dialog */}
-      <Dialog open={openPartyDialog} onClose={() => setOpenPartyDialog(false)} maxWidth="sm" fullWidth>
+      <Dialog open={openPartyDialog} onClose={() => setOpenPartyDialog(false)} maxWidth="md" fullWidth>
         <DialogTitle>Create New Party</DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -1205,6 +1254,47 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
               multiline
               rows={3}
             />
+            
+            {/* Category Discounts Section */}
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                <PercentIcon fontSize="small" sx={{ mr: 1 }} />
+                Category Discounts
+              </Typography>
+              
+              <Divider sx={{ mb: 2 }} />
+              
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  {Object.keys(newParty.categoryDiscounts).length > 0 
+                    ? `${Object.keys(newParty.categoryDiscounts).length} category discount${Object.keys(newParty.categoryDiscounts).length > 1 ? 's' : ''} configured` 
+                    : 'No category discounts configured'}
+                </Typography>
+                
+                <Button 
+                  variant="outlined" 
+                  size="small"
+                  onClick={() => setOpenNewPartyCategoryDiscountEditor(true)}
+                  startIcon={<PercentIcon />}
+                >
+                  Configure Discounts
+                </Button>
+              </Box>
+              
+              {Object.keys(newParty.categoryDiscounts).length > 0 && (
+                <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {Object.entries(newParty.categoryDiscounts).map(([category, discount]) => (
+                    <Chip 
+                      key={category}
+                      label={`${category}: ${discount}%`}
+                      color="primary"
+                      variant="outlined"
+                      size="small"
+                    />
+                  ))}
+                </Box>
+              )}
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions>
@@ -1220,7 +1310,7 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
         </DialogActions>
       </Dialog>
       
-      {/* Category Discount Editor Dialog */}
+      {/* Category Discount Editor Dialog for Selected Party */}
       {selectedParty && (
         <CategoryDiscountEditor
           open={openCategoryDiscountEditor}
@@ -1230,6 +1320,15 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
           onSave={handleUpdateCategoryDiscounts}
         />
       )}
+      
+      {/* Category Discount Editor Dialog for New Party */}
+      <CategoryDiscountEditor
+        open={openNewPartyCategoryDiscountEditor}
+        onClose={() => setOpenNewPartyCategoryDiscountEditor(false)}
+        partyId="new-party" // Temporary ID for new party
+        categoryDiscounts={newParty.categoryDiscounts}
+        onSave={handleUpdateNewPartyCategoryDiscounts}
+      />
       
       {/* Success Message Snackbar */}
       <Snackbar

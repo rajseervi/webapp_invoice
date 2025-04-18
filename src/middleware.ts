@@ -15,6 +15,11 @@ export async function middleware(request: NextRequest) {
                       path === '/pending-approval' ||
                       path === '/account-inactive' ||
                       path.startsWith('/api/auth/');
+                      
+  // Skip middleware for auth API endpoints to prevent interference
+  if (path.startsWith('/api/auth/')) {
+    return NextResponse.next();
+  }
   
   // Define role-specific paths
   const isAdminPath = path.startsWith('/admin');

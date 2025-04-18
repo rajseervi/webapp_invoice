@@ -267,7 +267,7 @@ export default function ProductsPage() {
       setProducts(productsList);
       setError(null);
     }
-    } catch (err: any) {
+    catch (err: any) {
       console.error('Error fetching products:', err);
       setError('Failed to fetch products. Please try again later.');
     } finally {

@@ -12,56 +12,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the cookies instance
-    const cookieStore = cookies();
-    
+    // Common cookie options
+    const cookieOptions = {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as 'lax' | 'strict' | 'none',
+      maxAge: expiresIn || 60 * 60 * 24 * 5, // 5 days by default
+      path: '/',
+    };
+
+    // Get the cookie store (needs to be awaited in Next.js 14+)
+    const cookieStore = await cookies();
+
     // Set the session cookie
-    await cookieStore.set({
+    cookieStore.set({
       name: 'session',
       value: token,
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: expiresIn || 60 * 60 * 24 * 5, // 5 days by default
-      path: '/',
+      ...cookieOptions,
     });
 
     // Set the user role cookie
     if (role) {
-      await cookieStore.set({
+      cookieStore.set({
         name: 'userRole',
         value: role,
         httpOnly: false, // Allow JavaScript access to this cookie
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: expiresIn || 60 * 60 * 24 * 5, // 5 days by default
-        path: '/',
+        ...cookieOptions,
       });
     }
 
     // Set the user status cookie
     if (status) {
-      await cookieStore.set({
+      cookieStore.set({
         name: 'userStatus',
         value: status,
         httpOnly: false, // Allow JavaScript access to this cookie
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: expiresIn || 60 * 60 * 24 * 5, // 5 days by default
-        path: '/',
+        ...cookieOptions,
       });
     }
 
     // Set the subscription status cookie
     if (subscriptionActive !== undefined) {
-      await cookieStore.set({
+      cookieStore.set({
         name: 'subscriptionActive',
         value: subscriptionActive.toString(),
         httpOnly: false, // Allow JavaScript access to this cookie
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: expiresIn || 60 * 60 * 24 * 5, // 5 days by default
-        path: '/',
+        ...cookieOptions,
       });
     }
 
@@ -77,11 +73,15 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE() {
   // Clear the session cookies
-  const cookieStore = cookies();
-  await cookieStore.delete('session');
-  await cookieStore.delete('userRole');
-  await cookieStore.delete('userStatus');
-  await cookieStore.delete('subscriptionActive');
+  const cookieOptions = { path: '/' };
+  
+  // Get the cookie store (needs to be awaited in Next.js 14+)
+  const cookieStore = await cookies();
+  
+  cookieStore.delete('session', cookieOptions);
+  cookieStore.delete('userRole', cookieOptions);
+  cookieStore.delete('userStatus', cookieOptions);
+  cookieStore.delete('subscriptionActive', cookieOptions);
   
   return NextResponse.json({ success: true });
 }

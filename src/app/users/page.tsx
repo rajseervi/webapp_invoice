@@ -36,7 +36,8 @@ import {
   Delete as DeleteIcon,
   Search as SearchIcon,
   CheckCircleOutline as CheckCircleOutlineIcon,
-  CardMembership as CardMembershipIcon
+  CardMembership as CardMembershipIcon,
+  Security as SecurityIcon
 } from '@mui/icons-material';
 import { 
   collection, 
@@ -50,6 +51,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 
 // Define interfaces
 interface ApprovalStatus {
@@ -80,7 +82,8 @@ interface User {
 }
 
 export default function UsersPage() {
-  const { currentUser } = useAuth();
+  const { currentUser, userRole } = useAuth();
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
