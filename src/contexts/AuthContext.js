@@ -7,7 +7,9 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   setPersistence,
-  browserLocalPersistence
+  browserLocalPersistence,
+  sendPasswordResetEmail,
+  updatePassword
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
@@ -425,6 +427,28 @@ export function AuthProvider({ children }) {
     const userDoc = await getDoc(doc(db, 'users', uid));
     return userDoc.data()?.role;
   }
+  
+  async function resetPassword(email) {
+    if (!email) {
+      throw new Error('Email is required');
+    }
+    
+    try {
+      await sendPasswordResetEmail(auth, email);
+      return true;
+    } catch (error) {
+      console.error('Password reset error:', error);
+      if (error.code === 'auth/user-not-found') {
+        throw new Error('No user found with this email');
+      } else if (error.code === 'auth/invalid-email') {
+        throw new Error('Invalid email format');
+      } else if (error.code === 'auth/too-many-requests') {
+        throw new Error('Too many requests. Please try again later');
+      } else {
+        throw new Error('An error occurred during password reset');
+      }
+    }
+  }
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -534,7 +558,8 @@ export function AuthProvider({ children }) {
     login,
     loginWithGoogle,
     logout,
-    getUserRole
+    getUserRole,
+    resetPassword
   };
 
   return (

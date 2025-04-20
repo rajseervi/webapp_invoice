@@ -17,7 +17,8 @@ import {
   People as PeopleIcon,
   Receipt as ReceiptIcon,
   Settings as SettingsIcon,
-  Group as UsersIcon
+  Group as UsersIcon,
+  Help as HelpIcon
 } from '@mui/icons-material';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
