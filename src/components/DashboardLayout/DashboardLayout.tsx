@@ -1,568 +1,339 @@
-"use client"
-import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Drawer,
-  AppBar,
-  Toolbar,
-  List,
-  Typography,
-  Divider,
-  IconButton,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Avatar,
-  Badge,
-  Collapse,
+"use client";
+import React, { useState, ReactNode, useEffect } from 'react';
+import { 
+  Box, 
+  CssBaseline, 
+  AppBar, 
+  Toolbar, 
+  Typography, 
+  IconButton, 
+  Drawer, 
+  useMediaQuery,
   useTheme,
-  alpha,
   Tooltip,
-  Menu,
-  MenuItem,
 } from '@mui/material';
+import { useAuth } from '@/contexts/AuthContext';
+import { alpha } from '@mui/material/styles';
 import {
   Menu as MenuIcon,
-  Dashboard,
-  Inventory,
-  ShoppingCart,
-  Assessment,
-  Settings,
-  People,
-  Notifications,
-  ChevronLeft,
-  ExpandLess,
-  ExpandMore,
-  Circle as CircleIcon,
-  Person as PersonIcon,
-  Logout as LogoutIcon,
-  AccountCircle as AccountCircleIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import { handleLogout } from '@/utils/authRedirects';
-import ThemeToggle from '../ThemeToggle';
+import Navigation from './FixedNavigation';
 
-const drawerWidth = 240;
+// Constants
+const DRAWER_WIDTH = 260;
+const APPBAR_HEIGHT = 64;
 
-const menuItems = [
-  { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
-  { 
-    text: 'Inventory', 
-    icon: <Inventory />, 
-    path: '/inventory',
-    subItems: [
-      { text: 'Overview', path: '/inventory' },
-      { text: 'Alerts', path: '/inventory/alerts' },
-      { text: 'Products', path: '/products' },
-      { text: 'Categories', path: '/categories' }
-    ]
-  },
-  { text: 'Sales', icon: <ShoppingCart />, path: '/sales' },
-  { text: 'Reports', icon: <Assessment />, path: '/reports' },
-  { text: 'Users', icon: <People />, path: '/users' },
-  { text: 'Settings', icon: <Settings />, path: '/settings' },
-];
+interface DashboardLayoutProps {
+  children: ReactNode;
+}
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const theme = useTheme();
   const router = useRouter();
   const pathname = usePathname();
-  const { currentUser } = useAuth();
+  const { currentUser, userRole } = useAuth();
   
-  const [open, setOpen] = useState(true);
-  const [expandedMenus, setExpandedMenus] = useState<{ [key: string]: boolean }>({
-    Inventory: true // Default expanded state
+  // Use strict breakpoint to ensure proper detection of mobile devices
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'), {
+    defaultMatches: false,
+    noSsr: true,
   });
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [notificationsAnchorEl, setNotificationsAnchorEl] = useState<null | HTMLElement>(null);
-  const [notifications, setNotifications] = useState([
-    { id: 1, message: "New order received", read: false },
-    { id: 2, message: "Low stock alert: Product XYZ", read: false },
-    { id: 3, message: "Payment confirmed", read: true },
-    { id: 4, message: "New user registered", read: true }
-  ]);
   
-  // Handle window resize to collapse sidebar on small screens
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 960) {
-        setOpen(false);
-      } else {
-        setOpen(true);
-      }
-    };
-    
-    window.addEventListener('resize', handleResize);
-    handleResize(); // Initial check
-    
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  // Simple drawer state - just open or closed
+  const [drawerOpen, setDrawerOpen] = useState(!isMobile);
   
-  const handleMenuToggle = (text: string) => {
-    setExpandedMenus(prev => ({
-      ...prev,
-      [text]: !prev[text]
-    }));
-  };
-  
-  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-  
-  const handleProfileMenuClose = () => {
-    setAnchorEl(null);
-  };
-  
-  const handleNotificationsOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setNotificationsAnchorEl(event.currentTarget);
-  };
-  
-  const handleNotificationsClose = () => {
-    setNotificationsAnchorEl(null);
-  };
-  
-  const handleProfileClick = () => {
-    router.push('/profile');
-    handleProfileMenuClose();
-  };
-  
-  const handleLogout = async () => {
+  // Save drawer state to localStorage
+  const saveDrawerState = (isOpen: boolean) => {
     try {
-      const { logout } = useAuth();
-      
-      // Use the utility function for logout
-      await handleLogout(
-        logout,
-        router,
-        handleProfileMenuClose
-      );
-    } catch (error) {
-      console.error('Logout error:', error);
-      router.push('/login');
+      localStorage.setItem('drawerState', JSON.stringify({ open: isOpen }));
+    } catch (e) {
+      console.error('Failed to save drawer state:', e);
     }
   };
   
-  const unreadNotificationsCount = notifications.filter(n => !n.read).length;
+  // Toggle drawer open/closed
+  const toggleDrawer = () => {
+    const newState = !drawerOpen;
+    setDrawerOpen(newState);
+    saveDrawerState(newState);
+  };
+  
+  // Close drawer (for both mobile and desktop)
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    saveDrawerState(false);
+  };
+  
+  // Handle navigation item click - always close drawer
+  const handleNavItemClick = () => {
+    // Always close drawer after navigation
+    closeDrawer();
+  };
+  
+  // Listen for route changes to close drawer
+  useEffect(() => {
+    // Close drawer on route change
+    const handleRouteChange = () => {
+      closeDrawer();
+    };
+    
+    // Add event listener for route changes
+    window.addEventListener('popstate', handleRouteChange);
+    
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange);
+    };
+  }, []);
+  
+  // Load saved drawer state on initial render
+  useEffect(() => {
+    const savedDrawerState = localStorage.getItem('drawerState');
+    
+    if (savedDrawerState) {
+      try {
+        const state = JSON.parse(savedDrawerState);
+        // On mobile, always start with closed drawer regardless of saved state
+        if (isMobile) {
+          closeDrawer();
+        } else {
+          // On desktop, respect saved state
+          setDrawerOpen(state.open);
+        }
+      } catch (e) {
+        // If parsing fails, set default state
+        setDrawerOpen(!isMobile);
+        saveDrawerState(!isMobile);
+      }
+    } else {
+      // Default state if nothing is saved
+      setDrawerOpen(!isMobile);
+      saveDrawerState(!isMobile);
+    }
+  }, [isMobile]);
+  
+  // Handle window resize events
+  useEffect(() => {
+    const handleResize = () => {
+      // Close drawer on mobile
+      if (window.innerWidth < theme.breakpoints.values.md) {
+        closeDrawer();
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [theme.breakpoints.values.md]);
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', height: '100vh' }}>
+      <CssBaseline />
+      
+      {/* App Bar */}
       <AppBar 
         position="fixed" 
+        elevation={0}
         sx={{ 
-          zIndex: (theme) => theme.zIndex.drawer + 1,
-          background: theme.palette.mode === 'light' 
-            ? 'linear-gradient(90deg, rgba(67,97,238,1) 0%, rgba(72,149,239,1) 100%)' 
-            : 'linear-gradient(90deg, rgba(30,41,59,1) 0%, rgba(44,55,74,1) 100%)',
+          zIndex: theme.zIndex.drawer + 1,
+          backdropFilter: 'blur(10px)',
+          bgcolor: theme.palette.mode === 'dark' 
+            ? alpha(theme.palette.background.paper, 0.75) 
+            : alpha(theme.palette.primary.main, 0.97),
+          borderBottom: '1px solid',
+          borderColor: theme.palette.mode === 'dark'
+            ? alpha(theme.palette.divider, 0.6)
+            : alpha(theme.palette.primary.dark, 0.15),
+          boxShadow: theme.palette.mode === 'dark'
+            ? '0 4px 20px rgba(0,0,0,0.15)'
+            : '0 4px 20px rgba(0,0,0,0.08)',
+          height: APPBAR_HEIGHT,
         }}
       >
-        <Toolbar sx={{ px: { xs: 2, sm: 3 } }}>
-          <IconButton
-            color="inherit"
-            edge="start"
-            onClick={() => setOpen(!open)}
-            sx={{ mr: 2 }}
-          >
-            <MenuIcon />
-          </IconButton>
-          
-          <Typography 
-            variant="h6" 
-            noWrap 
-            component="div" 
-            sx={{ 
-              flexGrow: 1,
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1
-            }}
-          >
-            <Inventory sx={{ display: { xs: 'none', sm: 'block' } }} />
-            Inventory Management System
-          </Typography>
-          
-          {/* Theme Toggle */}
-          <ThemeToggle />
-          
-          {/* Notifications */}
-          <Tooltip title="Notifications">
-            <IconButton 
-              color="inherit"
-              onClick={handleNotificationsOpen}
-            >
-              <Badge badgeContent={unreadNotificationsCount} color="error">
-                <Notifications />
-              </Badge>
-            </IconButton>
-          </Tooltip>
-          
-          {/* User Profile */}
-          <Tooltip title="Account">
-            <IconButton 
-              onClick={handleProfileMenuOpen}
-              sx={{ ml: 1 }}
-            >
-              <Avatar 
-                sx={{ 
-                  width: 32, 
-                  height: 32,
-                  bgcolor: theme.palette.secondary.main
+        <Toolbar sx={{ 
+          minHeight: APPBAR_HEIGHT, 
+          px: { xs: 1.5, sm: 2 },
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Tooltip title="Toggle sidebar" arrow>
+              <IconButton
+                color="inherit"
+                aria-label="toggle drawer"
+                onClick={toggleDrawer}
+                edge="start"
+                size="medium"
+                sx={{
+                  mr: 1.5,
+                  bgcolor: theme.palette.mode === 'dark' 
+                    ? alpha(theme.palette.background.paper, 0.15) 
+                    : alpha(theme.palette.common.white, 0.15),
+                  '&:hover': {
+                    bgcolor: theme.palette.mode === 'dark' 
+                      ? alpha(theme.palette.background.paper, 0.25) 
+                      : alpha(theme.palette.common.white, 0.25),
+                  },
                 }}
               >
-                P
-              </Avatar>
-            </IconButton>
-          </Tooltip>
+                <MenuIcon />
+              </IconButton>
+            </Tooltip>
+            <Typography 
+              variant="h6" 
+              noWrap 
+              component="div" 
+              sx={{ 
+                fontWeight: 600,
+                letterSpacing: '0.5px',
+                color: theme.palette.common.white,
+              }}
+            >
+              Dashboard
+            </Typography>
+          </Box>
+          
+          {/* Right side of AppBar - intentionally left empty */}
+          <Box></Box>
         </Toolbar>
       </AppBar>
       
-      {/* Profile Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleProfileMenuClose}
-        PaperProps={{
-          elevation: 3,
-          sx: { 
-            mt: 1.5,
-            minWidth: 200,
-            borderRadius: 2,
-            overflow: 'visible',
-            filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.15))',
-            '&:before': {
-              content: '""',
-              display: 'block',
-              position: 'absolute',
-              top: 0,
-              right: 14,
-              width: 10,
-              height: 10,
-              bgcolor: 'background.paper',
-              transform: 'translateY(-50%) rotate(45deg)',
-              zIndex: 0,
-            },
-          },
-        }}
-        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-      >
-        <MenuItem onClick={handleProfileClick}>
-          <ListItemIcon>
-            <PersonIcon fontSize="small" />
-          </ListItemIcon>
-          Profile
-        </MenuItem>
-        <MenuItem onClick={handleLogout}>
-          <ListItemIcon>
-            <LogoutIcon fontSize="small" />
-          </ListItemIcon>
-          Logout
-        </MenuItem>
-      </Menu>
-      
-      {/* Notifications Menu */}
-      <Menu
-        anchorEl={notificationsAnchorEl}
-        open={Boolean(notificationsAnchorEl)}
-        onClose={handleNotificationsClose}
-        PaperProps={{
-          elevation: 3,
-          sx: { 
-            mt: 1.5,
-            minWidth: 300,
-            maxWidth: 360,
-            borderRadius: 2,
-            overflow: 'visible',
-            filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.15))',
-            '&:before': {
-              content: '""',
-              display: 'block',
-              position: 'absolute',
-              top: 0,
-              right: 14,
-              width: 10,
-              height: 10,
-              bgcolor: 'background.paper',
-              transform: 'translateY(-50%) rotate(45deg)',
-              zIndex: 0,
-            },
-          },
-        }}
-        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-      >
-        <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
-          <Typography variant="subtitle1" fontWeight={600}>Notifications</Typography>
-        </Box>
-        {notifications.length > 0 ? (
-          <>
-            {notifications.map((notification) => (
-              <MenuItem 
-                key={notification.id} 
-                onClick={handleNotificationsClose}
-                sx={{ 
-                  py: 1.5,
-                  px: 2,
-                  borderLeft: notification.read ? 'none' : `3px solid ${theme.palette.primary.main}`,
-                  bgcolor: notification.read ? 'transparent' : alpha(theme.palette.primary.main, 0.08),
-                }}
-              >
-                <Typography variant="body2">{notification.message}</Typography>
-              </MenuItem>
-            ))}
-            <Box sx={{ p: 1, borderTop: `1px solid ${theme.palette.divider}`, textAlign: 'center' }}>
-              <Typography 
-                variant="body2" 
-                color="primary" 
-                sx={{ cursor: 'pointer', fontWeight: 500 }}
-                onClick={() => {
-                  router.push('/notifications');
-                  handleNotificationsClose();
-                }}
-              >
-                View All
-              </Typography>
-            </Box>
-          </>
-        ) : (
-          <Box sx={{ p: 2, textAlign: 'center' }}>
-            <Typography variant="body2" color="text.secondary">No notifications</Typography>
-          </Box>
-        )}
-      </Menu>
-
+      {/* Drawer */}
       <Drawer
-        variant="permanent"
-        open={open}
+        variant={isMobile ? "temporary" : "persistent"}
+        open={drawerOpen}
+        onClose={closeDrawer}
+        ModalProps={{
+          keepMounted: true, // Better mobile performance for temporary drawer
+        }}
         sx={{
-          width: drawerWidth,
-          flexShrink: 0,
-          [`& .MuiDrawer-paper`]: {
-            width: drawerWidth,
+          width: DRAWER_WIDTH,
+          flexShrink: 11,
+          '& .MuiDrawer-paper': {
+            width: DRAWER_WIDTH,
             boxSizing: 'border-box',
-            ...(open ? {
-              transition: theme =>
-                theme.transitions.create('width', {
-                  easing: theme.transitions.easing.sharp,
-                  duration: theme.transitions.duration.enteringScreen,
-                }),
-            } : {
-              width: theme => theme.spacing(7),
-              transition: theme =>
-                theme.transitions.create('width', {
-                  easing: theme.transitions.easing.sharp,
-                  duration: theme.transitions.duration.leavingScreen,
-                }),
-              overflowX: 'hidden',
-            }),
+            borderRight: `1px solid ${alpha(theme.palette.divider, 0.7)}`,
+            boxShadow: isMobile ? '0 8px 10px -5px rgba(0,0,0,0.2)' : 'none',
+            bgcolor: theme.palette.mode === 'dark' 
+              ? alpha(theme.palette.background.paper, 0.9) 
+              : alpha(theme.palette.background.paper, 0.98),
+            top: isMobile ? 0 : APPBAR_HEIGHT,
+            height: isMobile ? '100%' : `calc(100% - ${APPBAR_HEIGHT}px)`,
           },
         }}
       >
-        <Toolbar 
-          sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'flex-end',
-            px: [1],
-          }}
-        >
-          {open && (
-            <IconButton onClick={() => setOpen(false)}>
-              <ChevronLeft />
+        {/* Drawer Header - only for mobile */}
+        {isMobile && (
+          <Box sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: theme.spacing(0, 2),
+            height: APPBAR_HEIGHT,
+            borderBottom: `1px solid ${theme.palette.divider}`,
+          }}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>Menu</Typography>
+            <IconButton onClick={closeDrawer} edge="end">
+              <CloseIcon />
             </IconButton>
-          )}
-        </Toolbar>
-        <Divider />
-        
-        {/* User Profile Summary */}
-        {open && (
-          <Box sx={{ p: 2, textAlign: 'center' }}>
-            <Avatar 
-              sx={{ 
-                width: 64, 
-                height: 64, 
-                mx: 'auto',
-                mb: 1,
-                bgcolor: theme.palette.secondary.main,
-                boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
-              }}
-            >
-              P
-            </Avatar>
-            <Typography variant="subtitle1" fontWeight={600}>
-              Prakash Seervi
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Administrator
-            </Typography>
           </Box>
         )}
         
-        <Divider />
-        
-        <Box 
-          sx={{ 
-            overflow: 'auto',
-            px: open ? 2 : 1,
-            py: 2,
-            height: '100%',
-            backgroundColor: theme.palette.mode === 'light' 
-              ? alpha(theme.palette.primary.main, 0.03)
-              : 'transparent'
-          }}
-        >
-          <List component="nav" disablePadding>
-            {menuItems.map((item) => (
-              <React.Fragment key={item.text}>
-                <Tooltip 
-                  title={!open ? item.text : ""}
-                  placement="right"
-                  arrow
-                  disableHoverListener={open}
-                >
-                  <ListItem disablePadding sx={{ mb: 0.5 }}>
-                    <ListItemButton
-                      selected={pathname === item.path || pathname?.startsWith(item.path + '/')}
-                      onClick={() => {
-                        if (item.subItems) {
-                          handleMenuToggle(item.text);
-                        } else {
-                          router.push(item.path);
-                        }
-                      }}
-                      sx={{
-                        minHeight: 48,
-                        justifyContent: open ? 'initial' : 'center',
-                        px: 2.5,
-                        borderRadius: '10px',
-                        '&.Mui-selected': {
-                          color: theme.palette.primary.main,
-                        }
-                      }}
-                    >
-                      <ListItemIcon
-                        sx={{
-                          minWidth: 0,
-                          mr: open ? 2 : 'auto',
-                          justifyContent: 'center',
-                          color: 'inherit'
-                        }}
-                      >
-                        {item.icon}
-                      </ListItemIcon>
-                      {open && (
-                        <ListItemText 
-                          primary={item.text} 
-                          primaryTypographyProps={{ 
-                            fontWeight: pathname === item.path || pathname?.startsWith(item.path + '/') ? 600 : 500,
-                            fontSize: '0.9rem'
-                          }}
-                        />
-                      )}
-                      {item.subItems && open && (
-                        expandedMenus[item.text] ? <ExpandLess /> : <ExpandMore />
-                      )}
-                    </ListItemButton>
-                  </ListItem>
-                </Tooltip>
-                
-                {item.subItems && (
-                  <Collapse in={open && expandedMenus[item.text]} timeout="auto" unmountOnExit>
-                    <List component="div" disablePadding>
-                      {item.subItems.map((subItem) => (
-                        <Tooltip 
-                          key={subItem.text}
-                          title={!open ? subItem.text : ""}
-                          placement="right"
-                          arrow
-                          disableHoverListener={open}
-                        >
-                          <ListItemButton
-                            selected={pathname === subItem.path}
-                            onClick={() => router.push(subItem.path)}
-                            sx={{
-                              pl: 4,
-                              minHeight: 40,
-                              borderRadius: '10px',
-                              mb: 0.5,
-                              '&.Mui-selected': {
-                                color: theme.palette.primary.main,
-                              }
-                            }}
-                          >
-                            <ListItemIcon 
-                              sx={{ 
-                                minWidth: 24, 
-                                mr: open ? 2 : 'auto',
-                                color: 'inherit'
-                              }}
-                            >
-                              <CircleIcon sx={{ fontSize: 8 }} />
-                            </ListItemIcon>
-                            {open && (
-                              <ListItemText 
-                                primary={subItem.text} 
-                                primaryTypographyProps={{ 
-                                  fontWeight: pathname === subItem.path ? 600 : 400,
-                                  fontSize: '0.85rem'
-                                }}
-                              />
-                            )}
-                          </ListItemButton>
-                        </Tooltip>
-                      ))}
-                    </List>
-                  </Collapse>
-                )}
-              </React.Fragment>
-            ))}
-          </List>
+        {/* Navigation */}
+        <Box sx={{ 
+          overflow: 'auto',
+          height: isMobile ? `calc(100% - ${APPBAR_HEIGHT}px)` : '100%',
+          '&::-webkit-scrollbar': {
+            width: '4px',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: 'transparent',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: alpha(theme.palette.divider, 0.3),
+            borderRadius: '4px',
+          },
+          '&::-webkit-scrollbar-thumb:hover': {
+            background: alpha(theme.palette.divider, 0.5),
+          },
+        }}>
+          <Navigation 
+            onItemClick={handleNavItemClick}
+            miniDrawer={false}
+          />
         </Box>
       </Drawer>
-
+      
+      {/* Main Content */}
       <Box 
         component="main" 
         sx={{ 
-          flexGrow: 1, 
-          p: { xs: 2, sm: 3 },
-          backgroundColor: theme.palette.mode === 'light' 
-            ? alpha(theme.palette.primary.main, 0.02)
-            : 'transparent',
-          minHeight: '100vh',
-          transition: theme.transitions.create(['margin', 'width'], {
+          flexGrow: 1,
+          pt: `${APPBAR_HEIGHT}px`,
+          height: '100vh',
+          overflow: 'auto',
+          transition: theme.transitions.create('margin', {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.leavingScreen,
           }),
-          ...(open && {
-            width: `calc(100% - ${drawerWidth}px)`,
-            marginLeft: `${drawerWidth}px`,
-            transition: theme.transitions.create(['margin', 'width'], {
+          marginLeft: '-220px',
+          ...(drawerOpen && !isMobile && {
+            transition: theme.transitions.create('margin', {
               easing: theme.transitions.easing.easeOut,
               duration: theme.transitions.duration.enteringScreen,
             }),
+            marginLeft: `${DRAWER_WIDTH}px`,
           }),
+          bgcolor: theme.palette.mode === 'dark' 
+            ? alpha(theme.palette.background.default, 0.97) 
+            : '#f8f9fa',
+          '&::-webkit-scrollbar': {
+            width: '8px',
+            height: '8px',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: 'transparent',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: theme.palette.mode === 'dark'
+              ? alpha(theme.palette.primary.dark, 0.3)
+              : alpha(theme.palette.primary.main, 0.2),
+            borderRadius: '4px',
+          },
+          '&::-webkit-scrollbar-thumb:hover': {
+            background: theme.palette.mode === 'dark'
+              ? alpha(theme.palette.primary.dark, 0.5)
+              : alpha(theme.palette.primary.main, 0.3),
+          },
         }}
       >
-        <Toolbar />
+        {/* Content container */}
         <Box 
           sx={{ 
-            maxWidth: '100%',
-            animation: 'fadeIn 0.5s',
-            '@keyframes fadeIn': {
-              '0%': {
-                opacity: 0,
-                transform: 'translateY(10px)'
-              },
-              '100%': {
-                opacity: 1,
-                transform: 'translateY(0)'
-              },
-            },
+            maxWidth: '1600px', 
+            width: '100%',
+            mx: '0',
+            px: { xs: 1.5, sm: 2, md: 3 },
+            // py: { xs: 2, sm: 3 },
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: `calc(100% - ${APPBAR_HEIGHT}px)`,
           }}
         >
-          {children}
+          {/* Content */}
+          <Box
+            sx={{
+              flexGrow: 1,
+              width: '100%',
+              borderRadius: 1,
+              overflow: 'hidden',
+            }}
+          >
+            {children}
+          </Box>
         </Box>
       </Box>
     </Box>

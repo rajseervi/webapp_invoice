@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import { Container, Typography, Paper, Avatar, Box } from '@mui/material';
-import DashboardLayout from '../../components/DashboardLayout';
+import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
 import { Person as PersonIcon } from '@mui/icons-material';
 
 export default function ProfilePage() {

@@ -12,7 +12,11 @@ import {
 interface ConfirmationDialogProps {
   open: boolean;
   title: string;
-  message: string;
+  message?: string;
+  content?: React.ReactNode;
+  confirmText?: string;
+  cancelText?: string;
+  confirmColor?: 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -21,6 +25,10 @@ export default function ConfirmationDialog({
   open,
   title,
   message,
+  content,
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
+  confirmColor = 'primary',
   onConfirm,
   onCancel,
 }: ConfirmationDialogProps) {
@@ -28,12 +36,13 @@ export default function ConfirmationDialog({
     <Dialog open={open} onClose={onCancel}>
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
-        <Typography>{message}</Typography>
+        {message && <Typography>{message}</Typography>}
+        {content}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onCancel}>Cancel</Button>
-        <Button onClick={onConfirm} variant="contained" color="primary">
-          Confirm
+        <Button onClick={onCancel}>{cancelText}</Button>
+        <Button onClick={onConfirm} variant="contained" color={confirmColor}>
+          {confirmText}
         </Button>
       </DialogActions>
     </Dialog>

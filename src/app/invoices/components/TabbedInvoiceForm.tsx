@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Box, 
   Typography, 
@@ -30,7 +30,8 @@ import {
   Chip,
   Divider,
   Tooltip,
-  Badge
+  Badge,
+  Checkbox
 } from '@mui/material';
 import { 
   Delete as DeleteIcon, 
@@ -43,7 +44,9 @@ import {
   ShoppingCart as ShoppingCartIcon,
   Summarize as SummarizeIcon,
   CheckCircle as CheckCircleIcon,
-  Percent as PercentIcon
+  Percent as PercentIcon,
+  Edit as EditIcon,
+  Check as CheckIcon
 } from '@mui/icons-material';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, orderBy, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/firebase/config';
@@ -122,7 +125,7 @@ function a11yProps(index: number) {
 export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoiceFormProps) {
   const router = useRouter();
   const { parties, loading: loadingParties } = useParties();
-  const { products, loading: loadingProducts } = useProducts();
+  const { products, loading: loadingProducts, error: productsError, refetch: refetchProducts } = useProducts();
   const quantityInputRef = React.useRef<HTMLInputElement>(null);
   
   // Tab state
@@ -133,6 +136,8 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
   const [invoiceDate, setInvoiceDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [invoiceNumber, setInvoiceNumber] = useState<string>('');
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([]);
+  // State to track which line items have editable prices
+  const [editablePriceItems, setEditablePriceItems] = useState<Record<number, boolean>>({});
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,6 +160,32 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
   
   // New party category discount editor
   const [openNewPartyCategoryDiscountEditor, setOpenNewPartyCategoryDiscountEditor] = useState(false);
+  
+  // New product dialog
+  const [openProductDialog, setOpenProductDialog] = useState(false);
+  const [creatingProduct, setCreatingProduct] = useState(false);
+  const [newProductName, setNewProductName] = useState('');
+  const [newProductPrice, setNewProductPrice] = useState<number>(0);
+  const [newProductCategory, setNewProductCategory] = useState('');
+  const [customCategory, setCustomCategory] = useState('');
+  const [useCustomCategory, setUseCustomCategory] = useState(false);
+  
+  // Extract unique categories from products
+  const uniqueCategories = useMemo(() => {
+    const categories = products.map(product => product.category).filter(Boolean);
+    return Array.from(new Set(categories)).sort();
+  }, [products]);
+  
+  // Effect to handle custom category toggle
+  useEffect(() => {
+    if (useCustomCategory) {
+      // When switching to custom category, clear the selected category
+      setNewProductCategory('');
+    } else {
+      // When switching back to dropdown, clear the custom category
+      setCustomCategory('');
+    }
+  }, [useCustomCategory]);
 
   // Fetch existing invoice data if editing
   useEffect(() => {
@@ -380,6 +411,26 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
     });
     setOpenPartyDialog(true);
   };
+  
+  const handleOpenProductDialog = () => {
+    // Reset all product form fields
+    setNewProductName('');
+    setNewProductPrice(0);
+    setNewProductCategory('');
+    setCustomCategory('');
+    setUseCustomCategory(false);
+    setError(null); // Clear any previous errors
+    setOpenProductDialog(true);
+    
+    // Log for debugging
+    console.log('Opening product dialog, reset fields:', {
+      newProductName: '',
+      newProductPrice: 0,
+      newProductCategory: '',
+      customCategory: '',
+      useCustomCategory: false
+    });
+  };
 
   const handlePartyInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -446,6 +497,110 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
       setError(getFirestoreErrorMessage(err));
     } finally {
       setCreatingParty(false);
+    }
+  };
+  
+  const handleCreateProduct = async () => {
+    if (!newProductName.trim()) {
+      setError('Product name is required');
+      return;
+    }
+    
+    if (newProductPrice <= 0) {
+      setError('Product price must be greater than 0');
+      return;
+    }
+    
+    // Validate custom category if it's being used
+    if (useCustomCategory && !customCategory.trim()) {
+      setError('Custom category cannot be empty');
+      return;
+    }
+    
+    try {
+      setCreatingProduct(true);
+      setError(null);
+      
+      // Determine which category to use
+      const finalCategory = useCustomCategory ? customCategory.trim() : newProductCategory;
+      
+      // Log for debugging
+      console.log('Creating product with category:', {
+        useCustomCategory,
+        customCategory: customCategory.trim(),
+        selectedCategory: newProductCategory,
+        finalCategory
+      });
+      
+      // Create the new product in Firestore
+      const productData = {
+        name: newProductName.trim(),
+        price: newProductPrice,
+        category: finalCategory,
+        createdAt: serverTimestamp()
+      };
+      
+      // Use the executeWithRetry utility to handle connectivity issues
+      const productRef = await executeWithRetry(
+        async () => {
+          return await addDoc(collection(db, 'products'), productData);
+        },
+        3, // Max retries
+        (attempt, maxRetries, error) => {
+          // This callback is called on each retry attempt
+          setError(`Connection error. Retrying... (Attempt ${attempt}/${maxRetries})`);
+        }
+      );
+      
+      // Create a new product object with the ID
+      const newProduct = {
+        id: productRef.id,
+        name: newProductName.trim(),
+        price: newProductPrice,
+        category: finalCategory
+      };
+      
+      // Add to local products array
+      products.push(newProduct);
+      
+      // Calculate discount for the new product
+      let discount = 0;
+      let discountType: 'none' | 'category' | 'product' | 'custom' = 'none';
+      
+      if (selectedParty && finalCategory) {
+        const categoryDiscount = selectedParty.categoryDiscounts[finalCategory] || 0;
+        if (categoryDiscount > 0) {
+          discount = categoryDiscount;
+          discountType = 'category';
+        }
+      }
+      
+      // Calculate the final price with discount
+      const finalPrice = parseFloat((newProductPrice * (1 - discount/100) * 1).toFixed(2));
+      
+      // Add the new product as a line item
+      const newItem: InvoiceLineItem = {
+        productId: productRef.id,
+        name: newProductName.trim(),
+        quantity: 1,
+        price: newProductPrice,
+        category: finalCategory,
+        discount: discount,
+        discountType: discountType,
+        finalPrice: finalPrice
+      };
+      
+      setLineItems([...lineItems, newItem]);
+      
+      // Close the dialog
+      setOpenProductDialog(false);
+      setSuccessMessage('Product created and added to invoice');
+      
+    } catch (err) {
+      console.error('Error creating product:', err);
+      setError(getFirestoreErrorMessage(err));
+    } finally {
+      setCreatingProduct(false);
     }
   };
 
@@ -525,8 +680,36 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
     setLineItems(updatedItems);
   };
   
+  const handleUpdatePrice = (index: number, price: number) => {
+    // Ensure price is at least 0
+    const validPrice = Math.max(0, price);
+    
+    const updatedItems = lineItems.map((item, i) => {
+      if (i !== index) return item;
+      
+      const updatedItem = { ...item, price: validPrice };
+      return calculateItemDiscounts(updatedItem, selectedParty);
+    });
+    
+    setLineItems(updatedItems);
+  };
+  
   const handleRemoveItem = (index: number) => {
     setLineItems(lineItems.filter((_, i) => i !== index));
+    // Also remove from editable prices if it exists
+    if (editablePriceItems[index]) {
+      const updatedEditableItems = { ...editablePriceItems };
+      delete updatedEditableItems[index];
+      setEditablePriceItems(updatedEditableItems);
+    }
+  };
+  
+  // Toggle price edit mode for a specific line item
+  const togglePriceEditMode = (index: number) => {
+    setEditablePriceItems(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
   };
   
   // Handle updating category discounts
@@ -977,7 +1160,46 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
                   lineItems.map((item, index) => (
                     <TableRow key={index}>
                       <TableCell>{item.name}</TableCell>
-                      <TableCell align="right">₹{item.price}</TableCell>
+                      <TableCell align="right">
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                          {editablePriceItems[index] ? (
+                            <>
+                              <TextField
+                                type="number"
+                                size="small"
+                                value={item.price}
+                                onChange={(e) => handleUpdatePrice(index, parseFloat(e.target.value) || 0)}
+                                onFocus={(e) => e.target.select()} // Select all text when focused
+                                inputProps={{ min: 0, step: 0.01 }}
+                                sx={{ width: { xs: '80px', sm: '90px' } }}
+                                InputProps={{
+                                  startAdornment: <span style={{ fontSize: '0.8rem', marginRight: '2px' }}>₹</span>
+                                }}
+                                autoFocus
+                              />
+                              <IconButton 
+                                size="small" 
+                                color="primary"
+                                onClick={() => togglePriceEditMode(index)}
+                                sx={{ ml: 0.5 }}
+                              >
+                                <CheckIcon fontSize="small" />
+                              </IconButton>
+                            </>
+                          ) : (
+                            <>
+                              <Typography variant="body2" sx={{ mr: 1 }}>₹{item.price}</Typography>
+                              <IconButton 
+                                size="small" 
+                                color="primary"
+                                onClick={() => togglePriceEditMode(index)}
+                              >
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                            </>
+                          )}
+                        </Box>
+                      </TableCell>
                       <TableCell align="right">
                         <TextField
                           type="number"
@@ -1043,53 +1265,120 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
             mb: 3,
             alignItems: 'flex-start'
           }}>
-            <Autocomplete
-              fullWidth
-              options={products}
-              getOptionLabel={(product) => `${product.name} - ₹${product.price}`}
-              renderOption={(props, product) => (
-                <Box component="li" {...props} key={product.id}>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, width: '100%' }}>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {product.name}
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                      <Typography variant="body2" color="primary" sx={{ fontWeight: 500 }}>
-                        ₹{product.price.toFixed(2)}
+            {productsError ? (
+              <Box sx={{ width: '100%' }}>
+                <Alert 
+                  severity="error" 
+                  action={
+                    <Button 
+                      color="inherit" 
+                      size="small" 
+                      onClick={() => {
+                        refetchProducts();
+                      }}
+                    >
+                      Retry
+                    </Button>
+                  }
+                  sx={{ mb: 2 }}
+                >
+                  {productsError}
+                </Alert>
+                <Button
+                  variant="outlined"
+                  startIcon={<AddIcon />}
+                  onClick={handleOpenProductDialog}
+                  fullWidth
+                >
+                  Create New Product Manually
+                </Button>
+              </Box>
+            ) : (
+              <Autocomplete
+                fullWidth
+                options={products}
+                getOptionLabel={(product) => `${product.name} - ₹${product.price}`}
+                renderOption={(props, product) => (
+                  <Box component="li" {...props} key={product.id}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, width: '100%' }}>
+                      <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                        {product.name}
                       </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Category: {product.category || 'N/A'}
-                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                        <Typography variant="body2" color="primary" sx={{ fontWeight: 500 }}>
+                          ₹{product.price.toFixed(2)}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Category: {product.category || 'N/A'}
+                        </Typography>
+                      </Box>
                     </Box>
                   </Box>
-                </Box>
-              )}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Search Products"
-                  disabled={loadingProducts}
-                  placeholder="Type to search..."
-                  size="small"
-                />
-              )}
-              onChange={(_, product) => setSelectedProductId(product ? product.id : '')}
-              value={products.find(p => p.id === selectedProductId) || null}
-              loading={loadingProducts}
-              loadingText="Loading products..."
-              noOptionsText="No products found"
-            />
+                )}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Search Products"
+                    disabled={loadingProducts}
+                    placeholder="Type to search..."
+                    size="small"
+                  />
+                )}
+                onChange={(_, product) => setSelectedProductId(product ? product.id : '')}
+                value={products.find(p => p.id === selectedProductId) || null}
+                loading={loadingProducts}
+                loadingText="Loading products..."
+                noOptionsText={
+                  <Box sx={{ textAlign: 'center', py: 1 }}>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      No products found
+                    </Typography>
+                    <Button 
+                      size="small" 
+                      variant="outlined" 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        // If there's text in the search field, use it as the product name
+                        const searchText = document.querySelector('input[placeholder="Type to search..."]') as HTMLInputElement;
+                        if (searchText && searchText.value.trim()) {
+                          setNewProductName(searchText.value.trim());
+                        }
+                        handleOpenProductDialog();
+                      }}
+                      startIcon={<AddIcon />}
+                    >
+                      Create New Product
+                    </Button>
+                  </Box>
+                }
+              />
+            )}
             
-            <Button 
-              variant="contained" 
-              startIcon={<AddIcon />}
-              onClick={handleAddProduct}
-              disabled={!selectedProductId}
-              size="small"
-              sx={{ minWidth: 'auto', alignSelf: { xs: 'stretch', sm: 'flex-start' } }}
-            >
-              Add
-            </Button>
+            {!productsError && (
+              <Box sx={{ display: 'flex', gap: 1, alignSelf: { xs: 'stretch', sm: 'flex-start' } }}>
+                <Button 
+                  variant="contained" 
+                  startIcon={<AddIcon />}
+                  onClick={handleAddProduct}
+                  disabled={!selectedProductId}
+                  size="small"
+                  sx={{ minWidth: 'auto' }}
+                >
+                  Add
+                </Button>
+                
+                <Button 
+                  variant="outlined" 
+                  startIcon={<AddIcon />}
+                  onClick={handleOpenProductDialog}
+                  size="small"
+                  sx={{ minWidth: 'auto', whiteSpace: 'nowrap' }}
+                >
+                  New Product
+                </Button>
+              </Box>
+            )}
           </Box>
 
           
@@ -1332,6 +1621,112 @@ export default function TabbedInvoiceForm({ onSuccess, invoiceId }: TabbedInvoic
             startIcon={creatingParty ? <CircularProgress size={20} /> : null}
           >
             Create
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* New Product Dialog */}
+      <Dialog open={openProductDialog} onClose={() => setOpenProductDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create New Product</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="Product Name"
+              value={newProductName}
+              onChange={(e) => setNewProductName(e.target.value)}
+              fullWidth
+              required
+              error={!newProductName.trim() && creatingProduct}
+              helperText={!newProductName.trim() && creatingProduct ? "Product name is required" : ""}
+            />
+            
+            <TextField
+              label="Price"
+              type="number"
+              value={newProductPrice}
+              onChange={(e) => setNewProductPrice(parseFloat(e.target.value) || 0)}
+              fullWidth
+              required
+              InputProps={{
+                startAdornment: <span style={{ fontSize: '0.8rem', marginRight: '2px' }}>₹</span>
+              }}
+              inputProps={{ min: 0, step: 0.01 }}
+              error={newProductPrice <= 0 && creatingProduct}
+              helperText={newProductPrice <= 0 && creatingProduct ? "Price must be greater than 0" : ""}
+            />
+            
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <FormControl fullWidth disabled={useCustomCategory}>
+                <InputLabel id="new-product-category-label">Category</InputLabel>
+                <Select
+                  labelId="new-product-category-label"
+                  value={newProductCategory}
+                  onChange={(e: SelectChangeEvent) => setNewProductCategory(e.target.value)}
+                  label="Category"
+                >
+                  <MenuItem value="">
+                    <em>None</em>
+                  </MenuItem>
+                  {uniqueCategories.map((category) => (
+                    <MenuItem key={category} value={category}>
+                      {category}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 1, 
+                p: 1, 
+                border: '1px dashed',
+                borderColor: 'divider',
+                borderRadius: 1
+              }}>
+                <Checkbox
+                  checked={useCustomCategory}
+                  onChange={(e) => {
+                    setUseCustomCategory(e.target.checked);
+                    console.log('Custom category checkbox changed:', e.target.checked);
+                  }}
+                  id="use-custom-category"
+                  color="primary"
+                />
+                <Typography component="label" htmlFor="use-custom-category" sx={{ fontWeight: useCustomCategory ? 'bold' : 'normal' }}>
+                  Enter a custom category instead
+                </Typography>
+              </Box>
+              
+              {useCustomCategory && (
+                <TextField
+                  label="Custom Category"
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  fullWidth
+                  required
+                  error={!customCategory.trim() && creatingProduct}
+                  helperText={!customCategory.trim() && creatingProduct ? "Custom category is required" : ""}
+                  placeholder="e.g., Electronics, Clothing, etc."
+                />
+              )}
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenProductDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={handleCreateProduct} 
+            variant="contained" 
+            disabled={
+              creatingProduct || 
+              !newProductName.trim() || 
+              newProductPrice <= 0 || 
+              (useCustomCategory && !customCategory.trim())
+            }
+            startIcon={creatingProduct ? <CircularProgress size={20} /> : null}
+          >
+            Create & Add to Invoice
           </Button>
         </DialogActions>
       </Dialog>

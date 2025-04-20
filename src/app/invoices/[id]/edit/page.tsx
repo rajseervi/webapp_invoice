@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import DashboardLayout from '@/components/DashboardLayout';
+import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
 import TabbedInvoiceForm from '@/app/invoices/components/TabbedInvoiceForm';
 import { Container, Typography, Box, Button, Paper, Skeleton, Alert, CircularProgress } from '@mui/material';
 import { ArrowBack as ArrowBackIcon, Edit as EditIcon, Receipt as ReceiptIcon } from '@mui/icons-material';

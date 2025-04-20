@@ -1,6 +1,6 @@
 "use client"
 import React, { useState, useEffect, useMemo } from 'react';
-import DashboardLayout from '@/components/DashboardLayout';
+import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
 import ExcelImportExport from '@/components/products/ExcelImportExport';
 import ExportAllProducts from '@/components/products/ExportAllProducts';
 import ExportSelectedProducts from '@/components/products/ExportSelectedProducts';
@@ -26,6 +26,7 @@ import {
   DialogContent,
   DialogActions,
   FormControl,
+  FormControlLabel,
   InputLabel,
   Select,
   MenuItem,
@@ -66,7 +67,8 @@ import {
   orderBy,
   limit,
   startAfter,
-  getCountFromServer
+  getCountFromServer,
+  QueryConstraint
 } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 
@@ -106,16 +108,15 @@ export default function ProductsPage() {
   const [categoryBatchEditOpen, setCategoryBatchEditOpen] = useState(false);
   const [selectedCategoryForBatch, setSelectedCategoryForBatch] = useState<string>('');
   const [productsInSelectedCategory, setProductsInSelectedCategory] = useState<Product[]>([]);
+  const [productUpdates, setProductUpdates] = useState<{[id: string]: {price?: number, stock?: number}}>({});
   const [batchEditFields, setBatchEditFields] = useState({
     price: {
       enabled: false,
-      value: 0,
-      action: 'percentage' as 'percentage' | 'fixed'
+      value: 0
     },
     stock: {
       enabled: false,
-      value: 0,
-      action: 'percentage' as 'percentage' | 'fixed'
+      value: 0
     }
   });
   const [loading, setLoading] = useState(true);
@@ -226,28 +227,44 @@ export default function ProductsPage() {
 
       // Build query constraints
       let queryConstraints = [];
+      let useClientSideFiltering = false;
 
-      // Add category filter if specified (this can be done server-side)
+      // IMPORTANT: To completely avoid index requirements, we'll use a different approach
+      // When filtering by category, we'll ONLY use the category filter without any ordering
+      // This avoids the need for a composite index entirely
       if (categoryFilter) {
+        // Only use category filter without ordering
         queryConstraints.push(where('category', '==', categoryFilter));
+        console.log(`Using category-only filter for: ${categoryFilter} (no ordering)`);
+      } else {
+        // Only add ordering when not filtering by category
+        queryConstraints.push(orderBy('name'));
       }
 
-      // Add ordering
-      queryConstraints.push(orderBy('name'));
-
       // Add pagination constraints
-      if (!reset && !isFirstPage) {
+      if (!reset && !isFirstPage && !useClientSideFiltering) {
         queryConstraints.push(startAfter(lastVisible));
       } else {
         setIsFirstPage(true);
       }
 
-      // Add limit - don't limit results when search is active
-      if (!isSearchActive()) {
+      // Add limit - don't limit results when search is active or when we need client-side filtering
+      if (!isSearchActive() && !useClientSideFiltering) {
         queryConstraints.push(limit(rowsPerPage));
       } else {
-        // When search is active, fetch more results but still limit to avoid performance issues
-        queryConstraints.push(limit(100)); // Fetch up to 100 results when searching
+        // When search is active or we need client-side filtering, fetch more results
+        // but still limit to avoid performance issues
+        queryConstraints.push(limit(100)); // Fetch up to 100 results
+      }
+      
+      // If we're using client-side filtering for category, remove the category filter
+      // from server-side constraints
+      if (useClientSideFiltering && categoryFilter) {
+        queryConstraints = queryConstraints.filter(
+          constraint => !(constraint instanceof QueryConstraint && 
+                         constraint.toString().includes(`category == ${categoryFilter}`))
+        );
+        console.log('Using client-side filtering for category instead of server-side');
       }
 
       // Create the query
@@ -257,7 +274,41 @@ export default function ProductsPage() {
       // In a real production app, you would use a search service like Algolia or Elasticsearch
       // Firestore doesn't support full-text search natively
 
-      const productsSnapshot = await getDocs(productsQuery);
+      let productsSnapshot;
+      let hadIndexError = false;
+      
+      try {
+        productsSnapshot = await getDocs(productsQuery);
+      } catch (queryError: any) {
+        // Completely suppress index errors and use a simpler approach
+        console.log('Query failed, using fallback approach');
+        
+        try {
+          // For category filtering, try a simple category-only query with a high limit
+          if (categoryFilter) {
+            const simpleQuery = query(
+              productsRef, 
+              where('category', '==', categoryFilter),
+              limit(500)
+            );
+            productsSnapshot = await getDocs(simpleQuery);
+          } else {
+            // For non-category queries, just get all products with a limit
+            const simpleQuery = query(productsRef, limit(500));
+            productsSnapshot = await getDocs(simpleQuery);
+            
+            // We'll need to filter client-side
+            useClientSideFiltering = true;
+          }
+        } catch (fallbackError) {
+          // If even the simplest query fails, get all products
+          console.log('Using last resort query');
+          
+          const lastResortQuery = query(productsRef, limit(500));
+          productsSnapshot = await getDocs(lastResortQuery);
+          useClientSideFiltering = true;
+        }
+      }
 
       // Store the last visible document for pagination
       const lastVisibleDoc = productsSnapshot.docs[productsSnapshot.docs.length - 1];
@@ -275,9 +326,22 @@ export default function ProductsPage() {
           status: data.stock < 10 ? 'Low Stock' : 'In Stock'
         };
       });
+      
+      // If we're using category filtering without ordering, sort the products by name client-side
+      if (categoryFilter) {
+        productsList.sort((a, b) => a.name.localeCompare(b.name));
+        console.log(`Sorted ${productsList.length} products by name client-side`);
+      }
 
       // Apply client-side filtering based on search term and other filters
-      if (searchTerm || statusFilter !== 'all' || priceRange[0] > 0 || priceRange[1] < 10000 || stockRange[0] > 0 || stockRange[1] < 1000) {
+      if (searchTerm || statusFilter !== 'all' || priceRange[0] > 0 || priceRange[1] < 10000 || 
+          stockRange[0] > 0 || stockRange[1] < 1000 || (useClientSideFiltering && categoryFilter)) {
+        
+        // Log if we're using client-side filtering for category
+        if (useClientSideFiltering && categoryFilter) {
+          console.log(`Using client-side filtering for category: ${categoryFilter}`);
+        }
+        
         productsList = productsList.filter(product => {
           // Search term filtering
           let matchesSearch = true;
@@ -285,7 +349,7 @@ export default function ProductsPage() {
             const termLower = searchTerm.toLowerCase();
             matchesSearch = 
               product.name.toLowerCase().includes(termLower) ||
-              product.category.toLowerCase().includes(termLower);
+              (product.category && product.category.toLowerCase().includes(termLower));
           }
 
           // Status filtering
@@ -306,9 +370,20 @@ export default function ProductsPage() {
             product.stock >= stockRange[0] && 
             product.stock <= stockRange[1];
 
+          // Category filtering (in case we had to fall back to unfiltered query)
+          let matchesCategory = true;
+          if (useClientSideFiltering && categoryFilter) {
+            matchesCategory = product.category === categoryFilter;
+          }
+
           // Product must match all filters
-          return matchesSearch && matchesStatus && matchesPrice && matchesStock;
+          return matchesSearch && matchesStatus && matchesPrice && matchesStock && matchesCategory;
         });
+        
+        // Log the results of client-side filtering
+        if (useClientSideFiltering && categoryFilter) {
+          console.log(`Client-side filtering found ${productsList.length} products in category: ${categoryFilter}`);
+        }
         
         // When search is active, update the total count to match the filtered results
         if (isSearchActive()) {
@@ -493,20 +568,27 @@ export default function ProductsPage() {
     const priceUpdateParam = urlParams.get('priceUpdate');
     
     if (categoryParam) {
+      // Decode the category parameter to handle special characters
+      const decodedCategory = decodeURIComponent(categoryParam);
+      console.log('Category from URL:', decodedCategory);
+      
       // Set category filter
-      setCategoryFilter(categoryParam);
+      setCategoryFilter(decodedCategory);
       
       // If batch edit is requested, open the batch edit dialog
       if (batchEditParam === 'true') {
-        handleOpenCategoryBatchEdit(categoryParam);
+        // Small delay to ensure the component is fully mounted
+        setTimeout(() => {
+          handleOpenCategoryBatchEdit(decodedCategory);
+        }, 300);
       }
       
       // If price update is requested, open the price update dialog
       if (priceUpdateParam === 'true' && categoryPriceUpdateRef.current) {
         // Small delay to ensure the component is fully mounted
         setTimeout(() => {
-          categoryPriceUpdateRef.current.handleOpenWithCategory(categoryParam);
-        }, 100);
+          categoryPriceUpdateRef.current.handleOpenWithCategory(decodedCategory);
+        }, 300);
       }
     }
   }, [products, loading]);
@@ -1013,26 +1095,105 @@ export default function ProductsPage() {
   };
   
   // Open category batch edit dialog
-  const handleOpenCategoryBatchEdit = (categoryName: string) => {
+  const handleOpenCategoryBatchEdit = async (categoryName: string) => {
     setSelectedCategoryForBatch(categoryName);
     
     // Reset batch edit fields
     setBatchEditFields({
       price: {
         enabled: false,
-        value: 0,
-        action: 'percentage'
+        value: 0
       },
       stock: {
         enabled: false,
-        value: 0,
-        action: 'percentage'
+        value: 0
       }
     });
     
-    // Filter products by the selected category
-    const categoryProducts = products.filter(product => product.category === categoryName);
-    setProductsInSelectedCategory(categoryProducts);
+    // Reset product updates
+    setProductUpdates({});
+    
+    // If we don't have products loaded yet or we need to refresh the list
+    if (products.length === 0 || categoryFilter !== categoryName) {
+      // Set the category filter and fetch products
+      setCategoryFilter(categoryName);
+      
+      try {
+        setLoading(true);
+        
+        // Fetch products for this category directly from Firestore
+        const productsRef = collection(db, 'products');
+        let productsQuery;
+        
+        // Use a simple query with just the category filter - no ordering
+        // This avoids the need for a composite index entirely
+        productsQuery = query(
+          productsRef,
+          where('category', '==', categoryName),
+          limit(500) // Higher limit to ensure we get all products
+        );
+        console.log(`Created category-only query for batch edit: ${categoryName}`);
+        
+        let productsSnapshot;
+        try {
+          productsSnapshot = await getDocs(productsQuery);
+        } catch (queryError: any) {
+          // Completely suppress any errors and use the simplest possible query
+          console.log('Using fallback query for batch edit');
+          
+          // Get all products and filter client-side
+          const simpleQuery = query(productsRef, limit(500));
+          productsSnapshot = await getDocs(simpleQuery);
+        }
+        
+        // Map the documents to our product objects
+        let fetchedProducts = productsSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.name,
+            category: data.category,
+            price: data.price,
+            stock: data.stock,
+            status: data.stock < 10 ? 'Low Stock' : 'In Stock'
+          };
+        });
+        
+        // Filter by category if we had to fetch all products
+        if (categoryName) {
+          fetchedProducts = fetchedProducts.filter(product => product.category === categoryName);
+        }
+        
+        // Sort products by name client-side to ensure consistent ordering
+        fetchedProducts.sort((a, b) => a.name.localeCompare(b.name));
+        
+        // Filter products by the selected category
+        setProductsInSelectedCategory(fetchedProducts);
+        
+        // Show success message
+        setSnackbar({
+          open: true,
+          message: `Loaded ${fetchedProducts.length} products in ${categoryName} category`,
+          severity: 'success'
+        });
+      } catch (error) {
+        console.error('Error fetching products for batch edit:', error);
+        setSnackbar({
+          open: true,
+          message: 'Failed to load products. Please try again.',
+          severity: 'error'
+        });
+        
+        // Set empty array to avoid errors
+        setProductsInSelectedCategory([]);
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      // Filter products by the selected category
+      const categoryProducts = products.filter(product => product.category === categoryName);
+      setProductsInSelectedCategory(categoryProducts);
+    }
     
     // Open the dialog
     setCategoryBatchEditOpen(true);
@@ -1048,8 +1209,9 @@ export default function ProductsPage() {
   };
   
   // Handle batch field change
-  const handleBatchFieldChange = (field: 'price' | 'stock', property: 'enabled' | 'value' | 'action', value: any) => {
-    setBatchEditFields(prev => ({
+  const handleBatchFieldChange = (field: 'price' | 'stock', property: 'enabled' | 'value', value: any) => {
+    setBatchEditFields(
+      prev => ({
       ...prev,
       [field]: {
         ...prev[field],
@@ -1058,13 +1220,28 @@ export default function ProductsPage() {
     }));
   };
   
+  // Handle individual product update
+  const handleProductUpdateChange = (productId: string, field: 'price' | 'stock', value: number) => {
+    setProductUpdates(prev => {
+      const updates = { ...prev };
+      if (!updates[productId]) {
+        updates[productId] = {};
+      }
+      updates[productId][field] = value;
+      return updates;
+    });
+  };
+  
   // Execute batch update for products in category
   const handleCategoryBatchUpdate = async () => {
-    // Check if any field is enabled for update
-    if (!batchEditFields.price.enabled && !batchEditFields.stock.enabled) {
+    // Check if any updates are available
+    const hasIndividualUpdates = Object.keys(productUpdates).length > 0;
+    const hasBatchUpdates = batchEditFields.price.enabled || batchEditFields.stock.enabled;
+    
+    if (!hasIndividualUpdates && !hasBatchUpdates) {
       setSnackbar({
         open: true,
-        message: 'Please enable at least one field to update',
+        message: 'Please make at least one update',
         severity: 'warning'
       });
       return;
@@ -1078,52 +1255,60 @@ export default function ProductsPage() {
         const productRef = doc(db, 'products', product.id);
         const updates: { price?: number; stock?: number } = {};
         
-        // Calculate new price if enabled
-        if (batchEditFields.price.enabled) {
-          if (batchEditFields.price.action === 'percentage') {
-            // Percentage change
-            const percentageChange = (Number(batchEditFields.price.value) || 0) / 100;
-            updates.price = Math.max(0, product.price * (1 + percentageChange));
-          } else {
-            // Fixed value
-            updates.price = Number(batchEditFields.price.value) || 0;
-          }
+        // Check for individual product updates first
+        const individualUpdate = productUpdates[product.id];
+        
+        // Apply individual price update if available
+        if (individualUpdate?.price !== undefined) {
+          updates.price = Number(individualUpdate.price) || 0;
+          // Round to 2 decimal places
+          updates.price = Math.round(updates.price * 100) / 100;
+        } 
+        // Otherwise apply batch price update if enabled
+        else if (batchEditFields.price.enabled) {
+          updates.price = Number(batchEditFields.price.value) || 0;
           // Round to 2 decimal places
           updates.price = Math.round(updates.price * 100) / 100;
         }
         
-        // Calculate new stock if enabled
-        if (batchEditFields.stock.enabled) {
-          if (batchEditFields.stock.action === 'percentage') {
-            // Percentage change
-            const percentageChange = (Number(batchEditFields.stock.value) || 0) / 100;
-            updates.stock = Math.max(0, Math.round(product.stock * (1 + percentageChange)));
-          } else {
-            // Fixed value
-            updates.stock = Math.round(Number(batchEditFields.stock.value) || 0);
-          }
+        // Apply individual stock update if available
+        if (individualUpdate?.stock !== undefined) {
+          updates.stock = Math.round(Number(individualUpdate.stock) || 0);
+        } 
+        // Otherwise apply batch stock update if enabled
+        else if (batchEditFields.stock.enabled) {
+          updates.stock = Math.round(Number(batchEditFields.stock.value) || 0);
         }
         
-        // Update in Firestore
-        await updateDoc(productRef, updates);
+        // Only update if there are changes
+        if (Object.keys(updates).length > 0) {
+          // Update in Firestore
+          await updateDoc(productRef, updates);
+          
+          return {
+            id: product.id,
+            ...updates
+          };
+        }
         
-        return {
-          id: product.id,
-          ...updates
-        };
+        return null;
       });
       
       const results = await Promise.all(updatePromises);
+      const validResults = results.filter(result => result !== null) as Array<{id: string, price?: number, stock?: number}>;
       
       // Update local state
       setProducts(prevProducts => 
         prevProducts.map(product => {
-          const updated = results.find(result => result.id === product.id);
+          const updated = validResults.find(result => result?.id === product.id);
           if (updated) {
             return {
               ...product,
               ...(updated.price !== undefined ? { price: updated.price } : {}),
-              ...(updated.stock !== undefined ? { stock: updated.stock } : {})
+              ...(updated.stock !== undefined ? { stock: updated.stock } : {}),
+              status: updated.stock !== undefined ? 
+                (updated.stock < 10 ? 'Low Stock' : 'In Stock') : 
+                product.status
             };
           }
           return product;
@@ -1133,7 +1318,7 @@ export default function ProductsPage() {
       // Show success message
       setSnackbar({
         open: true,
-        message: `Successfully updated ${results.length} products in ${selectedCategoryForBatch} category`,
+        message: `Successfully updated ${validResults.length} products in ${selectedCategoryForBatch} category`,
         severity: 'success'
       });
       
@@ -1564,19 +1749,7 @@ export default function ProductsPage() {
           
           {/* Action Buttons */}
           <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-            {/* <Button
-              variant="contained"
-              color="primary"
-              startIcon={<AddIcon />}
-              onClick={handleAddProduct}
-            >
-              Add Product
-            </Button>
-             */}
-            {/* <ExcelImportExport onImportComplete={fetchData} />
-            <ExportAllProducts />
-            <RemoveDuplicatesButton onComplete={fetchData} /> */}
-            
+           
             {selectedProducts.length > 0 && (
               <>
                 <ExportSelectedProducts selectedIds={selectedProducts} />
@@ -2063,122 +2236,163 @@ export default function ProductsPage() {
               </Typography>
             </Paper>
             
-            {/* Price Update Section */}
+            {/* Batch Update Section */}
             <Paper sx={{ p: 2, mb: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Checkbox 
-                  checked={batchEditFields.price.enabled}
-                  onChange={(e) => handleBatchFieldChange('price', 'enabled', e.target.checked)}
-                />
-                <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                  Update Price
-                </Typography>
-              </Box>
+              <Typography variant="h6" gutterBottom>
+                Batch Update All Products
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Set values to apply to all products in this category
+              </Typography>
               
-              {batchEditFields.price.enabled && (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, ml: 4 }}>
-                  <FormControl sx={{ minWidth: 150 }}>
-                    <InputLabel>Update Type</InputLabel>
-                    <Select
-                      value={batchEditFields.price.action}
-                      onChange={(e) => handleBatchFieldChange('price', 'action', e.target.value)}
-                      label="Update Type"
-                      size="small"
-                    >
-                      <MenuItem value="percentage">Percentage Change</MenuItem>
-                      <MenuItem value="fixed">Fixed Value</MenuItem>
-                    </Select>
-                  </FormControl>
-                  
-                  <TextField
-                    label={batchEditFields.price.action === 'percentage' ? 'Percentage' : 'Price'}
-                    type="number"
-                    size="small"
-                    value={batchEditFields.price.value}
-                    onChange={(e) => handleBatchFieldChange('price', 'value', parseFloat(e.target.value) || 0)}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          {batchEditFields.price.action === 'percentage' ? '%' : '$'}
-                        </InputAdornment>
-                      )
-                    }}
-                    sx={{ width: 150 }}
-                  />
-                  
-                  {/* Preview */}
-                  <Box sx={{ flexGrow: 1, ml: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      Example: $100 → $
-                      {batchEditFields.price.action === 'percentage' 
-                        ? (100 * (1 + (Number(batchEditFields.price.value) || 0) / 100)).toFixed(2)
-                        : (Number(batchEditFields.price.value) || 0).toFixed(2)
-                      }
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Checkbox 
+                      checked={batchEditFields.price.enabled}
+                      onChange={(e) => handleBatchFieldChange('price', 'enabled', e.target.checked)}
+                    />
+                    <Typography variant="subtitle1">
+                      Update All Prices
                     </Typography>
                   </Box>
-                </Box>
-              )}
-            </Paper>
-            
-            {/* Stock Update Section */}
-            <Paper sx={{ p: 2, mb: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Checkbox 
-                  checked={batchEditFields.stock.enabled}
-                  onChange={(e) => handleBatchFieldChange('stock', 'enabled', e.target.checked)}
-                />
-                <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                  Update Stock
-                </Typography>
-              </Box>
-              
-              {batchEditFields.stock.enabled && (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, ml: 4 }}>
-                  <FormControl sx={{ minWidth: 150 }}>
-                    <InputLabel>Update Type</InputLabel>
-                    <Select
-                      value={batchEditFields.stock.action}
-                      onChange={(e) => handleBatchFieldChange('stock', 'action', e.target.value)}
-                      label="Update Type"
+                  
+                  {batchEditFields.price.enabled && (
+                    <TextField
+                      label="New Price for All Products"
+                      type="number"
                       size="small"
-                    >
-                      <MenuItem value="percentage">Percentage Change</MenuItem>
-                      <MenuItem value="fixed">Fixed Value</MenuItem>
-                    </Select>
-                  </FormControl>
-                  
-                  <TextField
-                    label={batchEditFields.stock.action === 'percentage' ? 'Percentage' : 'Stock'}
-                    type="number"
-                    size="small"
-                    value={batchEditFields.stock.value}
-                    onChange={(e) => handleBatchFieldChange('stock', 'value', parseFloat(e.target.value) || 0)}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          {batchEditFields.stock.action === 'percentage' ? '%' : '#'}
-                        </InputAdornment>
-                      )
-                    }}
-                    sx={{ width: 150 }}
-                  />
-                  
-                  {/* Preview */}
-                  <Box sx={{ flexGrow: 1, ml: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      Example: 100 units → 
-                      {batchEditFields.stock.action === 'percentage' 
-                        ? Math.round(100 * (1 + (Number(batchEditFields.stock.value) || 0) / 100))
-                        : Math.round(Number(batchEditFields.stock.value) || 0)
-                      } units
+                      fullWidth
+                      value={batchEditFields.price.value}
+                      onChange={(e) => handleBatchFieldChange('price', 'value', parseFloat(e.target.value) || 0)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            $
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  )}
+                </Grid>
+                
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Checkbox 
+                      checked={batchEditFields.stock.enabled}
+                      onChange={(e) => handleBatchFieldChange('stock', 'enabled', e.target.checked)}
+                    />
+                    <Typography variant="subtitle1">
+                      Update All Stock
                     </Typography>
                   </Box>
-                </Box>
-              )}
+                  
+                  {batchEditFields.stock.enabled && (
+                    <TextField
+                      label="New Stock for All Products"
+                      type="number"
+                      size="small"
+                      fullWidth
+                      value={batchEditFields.stock.value}
+                      onChange={(e) => handleBatchFieldChange('stock', 'value', parseFloat(e.target.value) || 0)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            #
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  )}
+                </Grid>
+              </Grid>
             </Paper>
             
-            {/* Products List */}
-            <Typography variant="h6" sx={{ mb: 2 }}>
+            {/* Individual Products List */}
+            <Paper sx={{ p: 2, mb: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Individual Product Updates
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Enter values for specific products to override batch settings
+              </Typography>
+              
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Product Name</TableCell>
+                      <TableCell align="right">Current Price</TableCell>
+                      <TableCell align="right">New Price</TableCell>
+                      <TableCell align="right">Current Stock</TableCell>
+                      <TableCell align="right">New Stock</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {productsInSelectedCategory.map((product) => {
+                      const productUpdate = productUpdates[product.id] || {};
+                      
+                      return (
+                        <TableRow key={product.id}>
+                          <TableCell>{product.name}</TableCell>
+                          <TableCell align="right">${product.price.toFixed(2)}</TableCell>
+                          <TableCell align="right">
+                            <TextField
+                              type="number"
+                              size="small"
+                              value={productUpdate.price !== undefined ? productUpdate.price : ''}
+                              onChange={(e) => handleProductUpdateChange(
+                                product.id, 
+                                'price', 
+                                e.target.value === '' ? 0 : parseFloat(e.target.value)
+                              )}
+                              placeholder={batchEditFields.price.enabled ? 
+                                `${batchEditFields.price.value}` : 
+                                'Enter price'
+                              }
+                              InputProps={{
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    $
+                                  </InputAdornment>
+                                )
+                              }}
+                              sx={{ width: 120 }}
+                            />
+                          </TableCell>
+                          <TableCell align="right">{product.stock}</TableCell>
+                          <TableCell align="right">
+                            <TextField
+                              type="number"
+                              size="small"
+                              value={productUpdate.stock !== undefined ? productUpdate.stock : ''}
+                              onChange={(e) => handleProductUpdateChange(
+                                product.id, 
+                                'stock', 
+                                e.target.value === '' ? 0 : parseFloat(e.target.value)
+                              )}
+                              placeholder={batchEditFields.stock.enabled ? 
+                                `${batchEditFields.stock.value}` : 
+                                'Enter stock'
+                              }
+                              InputProps={{
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    #
+                                  </InputAdornment>
+                                )
+                              }}
+                              sx={{ width: 120 }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Paper>
+            {/* <Typography variant="h6" sx={{ mb: 2 }}>
               Products in {selectedCategoryForBatch} Category
             </Typography>
             
@@ -2200,11 +2414,7 @@ export default function ProductsPage() {
                       <TableCell align="right">${product.price.toFixed(2)}</TableCell>
                       <TableCell align="right" sx={{ color: 'secondary.main', fontWeight: 'bold' }}>
                         {batchEditFields.price.enabled ? (
-                          batchEditFields.price.action === 'percentage' ? (
-                            `$${(product.price * (1 + (Number(batchEditFields.price.value) || 0) / 100)).toFixed(2)}`
-                          ) : (
-                            `$${(Number(batchEditFields.price.value) || 0).toFixed(2)}`
-                          )
+                          `$${(Number(batchEditFields.price.value) || 0).toFixed(2)}`
                         ) : (
                           '-'
                         )}
@@ -2212,11 +2422,7 @@ export default function ProductsPage() {
                       <TableCell align="right">{product.stock}</TableCell>
                       <TableCell align="right" sx={{ color: 'secondary.main', fontWeight: 'bold' }}>
                         {batchEditFields.stock.enabled ? (
-                          batchEditFields.stock.action === 'percentage' ? (
-                            Math.round(product.stock * (1 + (Number(batchEditFields.stock.value) || 0) / 100))
-                          ) : (
-                            Math.round(Number(batchEditFields.stock.value) || 0)
-                          )
+                          Math.round(Number(batchEditFields.stock.value) || 0)
                         ) : (
                           '-'
                         )}
@@ -2225,7 +2431,7 @@ export default function ProductsPage() {
                   ))}
                 </TableBody>
               </Table>
-            </Box>
+            </Box> */}
           </Box>
         </DialogContent>
         <DialogActions>

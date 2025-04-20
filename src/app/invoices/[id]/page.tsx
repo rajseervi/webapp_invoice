@@ -32,7 +32,7 @@ import {
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { executeWithRetry, getFirestoreErrorMessage } from '@/utils/firestoreHelpers';
-import DashboardLayout from '@/components/DashboardLayout';
+import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
 import InvoicePDF from '../components/InvoicePDF';
 import InvoiceTemplateSelector from '../components/InvoiceTemplateSelector';
 import Link from 'next/link';

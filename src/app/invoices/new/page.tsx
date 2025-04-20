@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import DashboardLayout from '@/components/DashboardLayout'; 
+import DashboardLayout from '@/components/DashboardLayout/DashboardLayout'; 
 import { Container, Typography, Box, Paper } from '@mui/material';
 import TabbedInvoiceForm from '../components/TabbedInvoiceForm';
 import { useRouter } from 'next/navigation';

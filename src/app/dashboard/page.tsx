@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { Box, CircularProgress, Typography, Button } from '@mui/material';
-import DashboardLayout from '@/components/DashboardLayout';
+import { Box, CircularProgress, Typography, Button, useMediaQuery, useTheme } from '@mui/material';
+import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import PermissionGuard from '@/components/PermissionGuard';
@@ -16,6 +16,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     const verifyAuth = async () => {
@@ -116,8 +118,10 @@ export default function Dashboard() {
           flexDirection: 'column',
           justifyContent: 'center', 
           alignItems: 'center',
-          height: 'calc(100vh - 88px)',
-          gap: 2
+          minHeight: { xs: 'calc(100vh - 120px)', md: 'calc(100vh - 88px)' },
+          width: '100%',
+          gap: 2,
+          py: { xs: 4, md: 6 }
         }}>
           <CircularProgress size={40} />
           <Typography variant="body1" color="text.secondary">
@@ -136,9 +140,10 @@ export default function Dashboard() {
           flexDirection: 'column',
           justifyContent: 'center', 
           alignItems: 'center',
-          height: 'calc(100vh - 88px)',
+          minHeight: { xs: 'calc(100vh - 120px)', md: 'calc(100vh - 88px)' },
+          width: '100%',
           gap: 2,
-          p: 3
+          p: { xs: 2, sm: 3, md: 4 }
         }}>
           <Typography variant="h6" color="error" align="center" gutterBottom>
             {error}
@@ -146,10 +151,18 @@ export default function Dashboard() {
           <Typography variant="body1" color="text.secondary" align="center" sx={{ maxWidth: 600, mb: 2 }}>
             This could be due to a temporary server issue or an expired session.
           </Typography>
-          <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: 2, 
+            mt: 2,
+            width: { xs: '100%', sm: 'auto' }
+          }}>
             <Button 
               variant="outlined" 
               onClick={() => window.location.reload()}
+              fullWidth={isMobile}
+              sx={{ minWidth: { sm: 120 } }}
             >
               Refresh Page
             </Button>
@@ -161,6 +174,8 @@ export default function Dashboard() {
                   .then(() => router.push('/login'))
                   .catch(() => router.push('/login'));
               }}
+              fullWidth={isMobile}
+              sx={{ minWidth: { sm: 140 } }}
             >
               Return to Login
             </Button>
@@ -182,8 +197,10 @@ export default function Dashboard() {
           flexDirection: 'column',
           justifyContent: 'center', 
           alignItems: 'center',
-          height: 'calc(100vh - 88px)',
-          gap: 2
+          minHeight: { xs: 'calc(100vh - 120px)', md: 'calc(100vh - 88px)' },
+          width: '100%',
+          gap: 2,
+          py: { xs: 4, md: 6 }
         }}>
           <CircularProgress size={40} />
           <Typography variant="body1" color="text.secondary">

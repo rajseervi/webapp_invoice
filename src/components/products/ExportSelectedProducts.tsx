@@ -8,16 +8,9 @@ import { exportProductsToExcel } from '@/utils/excelUtils';
 interface Product {
   id: string;
   name: string;
-  sku: string;
   category: string;
   price: number;
-  costPrice: number;
   stock: number;
-  description?: string;
-  unit?: string;
-  minStockLevel?: number;
-  barcode?: string;
-  isActive?: boolean;
 }
 
 interface ExportSelectedProductsProps {

@@ -22,7 +22,7 @@ import {
   useTheme,
   alpha,
 } from '@mui/material';
-import DashboardLayout from '../../components/DashboardLayout';
+import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTemplate } from '@/contexts/TemplateContext';
 import TemplateSwitcher from '@/app/invoices/components/TemplateSwitcher';

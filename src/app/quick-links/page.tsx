@@ -1,6 +1,6 @@
 "use client"
 import React, { useState, useEffect } from 'react';
-import DashboardLayout from '@/components/DashboardLayout';
+import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
 import { RemoveQuickLinkDuplicatesButton } from '@/components/Common/RemoveQuickLinkDuplicatesButton';
 import { findQuickLinkDuplicates } from '@/utils/quickLinkUtils';
 import {

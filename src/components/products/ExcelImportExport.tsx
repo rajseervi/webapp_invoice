@@ -27,16 +27,9 @@ import { db } from '@/firebase/config';
 interface Product {
   id?: string;
   name: string;
-  sku: string;
   category: string;
   price: number;
-  costPrice: number;
   stock: number;
-  description?: string;
-  unit?: string;
-  minStockLevel?: number;
-  barcode?: string;
-  isActive?: boolean;
   createdAt?: any;
   updatedAt?: any;
 }
@@ -106,10 +99,13 @@ const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onSuccess }) => {
       const batch = writeBatch(db);
       const productsRef = collection(db, 'products');
       
-      // Add timestamp to each product
+      // Add timestamp to each product and ensure only necessary fields are included
       const timestamp = new Date();
       const productsWithTimestamp = products.map(product => ({
-        ...product,
+        name: product.name,
+        category: product.category,
+        price: product.price,
+        stock: product.stock,
         createdAt: timestamp,
         updatedAt: timestamp
       }));
@@ -141,18 +137,18 @@ const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onSuccess }) => {
         onClick={handleOpen}
         sx={{ mr: 1 }}
       >
-        Import/Export
+        Simple Import/Export
       </Button>
       
       <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-        <DialogTitle>Import/Export Products</DialogTitle>
+        <DialogTitle>Simple Product Import/Export</DialogTitle>
         <DialogContent>
           <Box sx={{ mb: 3 }}>
             <Typography variant="h6" gutterBottom>
               Excel Import/Export Tools
             </Typography>
             <Typography variant="body2" color="text.secondary" paragraph>
-              Use these tools to import products from Excel or download templates and exports.
+              Use these tools to import products from Excel with minimal required fields: Name, Category, Price, and Stock.
             </Typography>
             
             <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
@@ -161,7 +157,7 @@ const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onSuccess }) => {
                 startIcon={<TemplateIcon />}
                 onClick={handleDownloadTemplate}
               >
-                Download Template
+                Download Simple Template
               </Button>
               
               <Button
@@ -211,7 +207,7 @@ const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onSuccess }) => {
                         <ListItem>
                           <ListItemText
                             primary={product.name}
-                            secondary={`SKU: ${product.sku} | Category: ${product.category} | Price: ${product.price} | Stock: ${product.stock}`}
+                            secondary={`Category: ${product.category} | Price: ${product.price} | Stock: ${product.stock}`}
                           />
                         </ListItem>
                         {index < products.length - 1 && <Divider />}

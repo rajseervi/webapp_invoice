@@ -53,7 +53,7 @@ import {
 } from '@mui/icons-material';
 import { collection, getDocs, query, orderBy, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/firebase/config';
-import DashboardLayout from '@/components/DashboardLayout';
+import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 

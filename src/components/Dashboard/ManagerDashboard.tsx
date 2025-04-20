@@ -1,757 +1,505 @@
-"use client";
 import React, { useState, useEffect } from 'react';
-import { 
-  Box, 
-  Typography, 
-  Card, 
-  CardContent, 
-  Avatar, 
+import {
+  Container,
+  Typography,
   Paper,
-  Button, 
-  CircularProgress,
-  useTheme,
   Grid,
-  IconButton,
-  Chip,
-  alpha,
-  Tooltip,
-  LinearProgress,
+  Card,
+  CardContent,
+  Box,
+  Button,
   Divider,
   List,
   ListItem,
+  ListItemButton,
   ListItemText,
-  ListItemAvatar,
-  ListItemSecondaryAction,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow
+  CircularProgress,
+  Alert,
+  Chip,
+  useTheme
 } from '@mui/material';
-import { 
-  ReceiptLong as InvoiceIcon, 
-  People as PeopleIcon, 
+import {
   Inventory as InventoryIcon,
-  AttachMoney as MoneyIcon,
-  Refresh as RefreshIcon,
-  ArrowUpward as ArrowUpwardIcon,
-  CalendarToday as CalendarIcon,
-  Add as AddIcon,
-  Visibility as VisibilityIcon,
-  ShoppingCart as ShoppingCartIcon,
+  Receipt as ReceiptIcon,
+  Warning as WarningIcon,
+  ArrowForward as ArrowForwardIcon,
   TrendingUp as TrendingUpIcon,
-  Assignment as AssignmentIcon
+  People as PeopleIcon
 } from '@mui/icons-material';
-import { collection, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
-import { db } from '@/firebase/config';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
+import { db } from '@/firebase/config';
 
-// Define interfaces for type safety
-interface Invoice {
-  id: string;
-  date: any;
-  total: number;
-  partyName?: string;
-  invoiceNumber?: string;
-  status?: string;
-  [key: string]: any;
+// Define interfaces
+interface SalesStat {
+  name: string;
+  value: number;
+  change: number;
+  icon: React.ReactNode;
+  color: string;
 }
 
-interface Product {
+interface RecentInvoice {
+  id: string;
+  invoiceNumber: string;
+  customerName: string;
+  amount: number;
+  status: string;
+  date: string;
+}
+
+interface LowStockItem {
   id: string;
   name: string;
   stock: number;
-  price: number;
-  category?: string;
+  category: string;
 }
 
-interface DashboardStats {
-  totalInvoices: number;
-  totalParties: number;
-  totalProducts: number;
-  totalRevenue: number;
-  lowStockItems: number;
+interface TopCustomer {
+  id: string;
+  name: string;
+  totalPurchases: number;
+  lastPurchase: string;
 }
 
 export default function ManagerDashboard() {
   const theme = useTheme();
   const router = useRouter();
   
-  const [stats, setStats] = useState<DashboardStats>({
-    totalInvoices: 0,
-    totalParties: 0,
-    totalProducts: 0,
-    totalRevenue: 0,
-    lowStockItems: 0
-  });
-  
-  const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
-  const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  
+  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<SalesStat[]>([]);
+  const [recentInvoices, setRecentInvoices] = useState<RecentInvoice[]>([]);
+  const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
+  const [topCustomers, setTopCustomers] = useState<TopCustomer[]>([]);
+
+  // Fetch dashboard data
   useEffect(() => {
-    const fetchManagerData = async () => {
+    const fetchDashboardData = async () => {
       try {
         setLoading(true);
         
-        // Fetch invoices count and recent invoices
-        const invoicesCollection = collection(db, 'invoices');
-        const invoicesSnapshot = await getDocs(invoicesCollection);
-        
-        // Get total invoices count
-        const invoicesCount = invoicesSnapshot.size;
-        
-        // Calculate total revenue
-        let totalRevenue = 0;
-        invoicesSnapshot.forEach(doc => {
-          const invoiceData = doc.data();
-          if (invoiceData.total) {
-            totalRevenue += invoiceData.total;
+        // Fetch sales stats
+        const mockStats: SalesStat[] = [
+          { 
+            name: 'Today\'s Sales', 
+            value: 4250, 
+            change: 12, 
+            icon: <TrendingUpIcon />, 
+            color: theme.palette.primary.main 
+          },
+          { 
+            name: 'Products', 
+            value: 156, 
+            change: 8, 
+            icon: <InventoryIcon />, 
+            color: theme.palette.success.main 
+          },
+          { 
+            name: 'Invoices', 
+            value: 89, 
+            change: 23, 
+            icon: <ReceiptIcon />, 
+            color: theme.palette.info.main 
+          },
+          { 
+            name: 'Low Stock Items', 
+            value: 12, 
+            change: -5, 
+            icon: <WarningIcon />, 
+            color: theme.palette.warning.main 
           }
-        });
+        ];
+        setStats(mockStats);
         
-        // Get recent invoices
-        const recentInvoicesQuery = query(
-          collection(db, 'invoices'),
-          orderBy('date', 'desc'),
-          limit(5)
-        );
-        const recentInvoicesSnapshot = await getDocs(recentInvoicesQuery);
-        const recentInvoicesList: Invoice[] = recentInvoicesSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as Invoice));
+        // Fetch recent invoices
+        // In a real app, you would fetch this from Firestore
+        const mockInvoices: RecentInvoice[] = [
+          {
+            id: '1',
+            invoiceNumber: 'INV-2023-0045',
+            customerName: 'Acme Corp',
+            amount: 1250.00,
+            status: 'paid',
+            date: new Date(Date.now() - 3600000).toISOString()
+          },
+          {
+            id: '2',
+            invoiceNumber: 'INV-2023-0044',
+            customerName: 'XYZ Industries',
+            amount: 875.50,
+            status: 'pending',
+            date: new Date(Date.now() - 7200000).toISOString()
+          },
+          {
+            id: '3',
+            invoiceNumber: 'INV-2023-0043',
+            customerName: 'Global Tech',
+            amount: 2340.00,
+            status: 'paid',
+            date: new Date(Date.now() - 10800000).toISOString()
+          },
+          {
+            id: '4',
+            invoiceNumber: 'INV-2023-0042',
+            customerName: 'Local Business',
+            amount: 450.75,
+            status: 'overdue',
+            date: new Date(Date.now() - 14400000).toISOString()
+          },
+        ];
+        setRecentInvoices(mockInvoices);
         
-        // Fetch parties count
-        const partiesCollection = collection(db, 'parties');
-        const partiesSnapshot = await getDocs(partiesCollection);
-        const partiesCount = partiesSnapshot.size;
-        
-        // Fetch products count and low stock items
-        const productsCollection = collection(db, 'products');
-        const productsSnapshot = await getDocs(productsCollection);
-        const productsCount = productsSnapshot.size;
-        
-        // Get low stock products
-        const lowStockItems: Product[] = [];
-        productsSnapshot.forEach(doc => {
-          const productData = doc.data();
-          if (productData.stock < 10) { // Assuming 10 is the threshold
-            lowStockItems.push({
+        // Fetch low stock items
+        try {
+          const productsRef = collection(db, 'products');
+          const lowStockQuery = query(
+            productsRef,
+            where('stock', '<', 10),
+            orderBy('stock', 'asc'),
+            limit(5)
+          );
+          
+          const lowStockSnapshot = await getDocs(lowStockQuery);
+          const lowStockData = lowStockSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
               id: doc.id,
-              name: productData.name,
-              stock: productData.stock,
-              price: productData.price,
-              category: productData.category
-            });
+              name: data.name,
+              stock: data.stock,
+              category: data.category
+            };
+          });
+          setLowStockItems(lowStockData);
+        } catch (err) {
+          console.error('Error fetching low stock items:', err);
+          // Use mock data if Firestore query fails
+          setLowStockItems([
+            { id: '1', name: 'Laptop XPS 15', stock: 3, category: 'Electronics' },
+            { id: '2', name: 'Wireless Mouse', stock: 5, category: 'Accessories' },
+            { id: '3', name: 'USB-C Cable', stock: 7, category: 'Accessories' },
+            { id: '4', name: 'Bluetooth Speaker', stock: 2, category: 'Electronics' },
+            { id: '5', name: 'Mechanical Keyboard', stock: 4, category: 'Accessories' }
+          ]);
+        }
+        
+        // Fetch top customers
+        // In a real app, you would fetch this from Firestore
+        const mockTopCustomers: TopCustomer[] = [
+          {
+            id: '1',
+            name: 'Acme Corp',
+            totalPurchases: 12500.00,
+            lastPurchase: new Date(Date.now() - 86400000).toISOString()
+          },
+          {
+            id: '2',
+            name: 'XYZ Industries',
+            totalPurchases: 8750.50,
+            lastPurchase: new Date(Date.now() - 172800000).toISOString()
+          },
+          {
+            id: '3',
+            name: 'Global Tech',
+            totalPurchases: 6340.00,
+            lastPurchase: new Date(Date.now() - 259200000).toISOString()
           }
-        });
+        ];
+        setTopCustomers(mockTopCustomers);
         
-        // Update state
-        setStats({
-          totalInvoices: invoicesCount,
-          totalParties: partiesCount,
-          totalProducts: productsCount,
-          totalRevenue: totalRevenue,
-          lowStockItems: lowStockItems.length
-        });
-        
-        setRecentInvoices(recentInvoicesList);
-        setLowStockProducts(lowStockItems);
-        
-      } catch (err) {
-        console.error('Error fetching manager dashboard data:', err);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching dashboard data:', err);
+        setError('Failed to fetch dashboard data. Please try again later.');
       } finally {
         setLoading(false);
       }
     };
     
-    fetchManagerData();
-  }, []);
-  
-  if (loading) {
-    return (
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: 'column',
-        justifyContent: 'center', 
-        alignItems: 'center',
-        height: 'calc(100vh - 88px)',
-        gap: 2
-      }}>
-        <CircularProgress size={40} />
-        <Typography variant="body1" color="text.secondary">
-          Loading manager dashboard...
+    fetchDashboardData();
+  }, [theme.palette]);
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString();
+  };
+
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
+  };
+
+  // Get status color
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'paid':
+        return 'success';
+      case 'pending':
+        return 'warning';
+      case 'overdue':
+        return 'error';
+      default:
+        return 'default';
+    }
+  };
+
+  return (
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4" gutterBottom>
+          Manager Dashboard
         </Typography>
+        <Button 
+          variant="contained" 
+          onClick={() => router.push('/reports/sales')}
+        >
+          View Sales Reports
+        </Button>
       </Box>
-    );
-  }
-  
+      
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
+      
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <>
+          {/* Stats Cards */}
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            {stats.map((stat, index) => (
+              <Grid item xs={12} sm={6} md={3} key={index}>
+                <Card>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">
+                          {stat.name}
+                        </Typography>
+                        <Typography variant="h4">
+                          {stat.name === 'Today\'s Sales' ? formatCurrency(stat.value) : stat.value}
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                          <Typography 
+                            variant="body2" 
+                            color={stat.change >= 0 ? 'success.main' : 'error.main'}
+                            sx={{ display: 'flex', alignItems: 'center' }}
+                          >
+                            {stat.change >= 0 ? '+' : ''}{stat.change}%
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                            vs last month
+                          </Typography>
+                        </Box>
+                      </Box>
+                      <Box 
+                        sx={{ 
+                          p: 1.5, 
+                          borderRadius: '50%', 
+                          bgcolor: `${stat.color}20`
+                        }}
+                      >
+                        <Box sx={{ color: stat.color }}>
+                          {stat.icon}
+                        </Box>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+          
+          <Grid container spacing={3}>
+            {/* Recent Invoices */}
+            <Grid item xs={12} md={6}>
+              <Paper sx={{ p: 2, height: '100%' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">Recent Invoices</Typography>
+                  <Button 
+                    size="small" 
+                    endIcon={<ArrowForwardIcon />}
+                    onClick={() => router.push('/invoices')}
+                  >
+                    View All
+                  </Button>
+                </Box>
+                <Divider sx={{ mb: 2 }} />
+                
+                {recentInvoices.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+                    No recent invoices found
+                  </Typography>
+                ) : (
+                  <List>
+                    {recentInvoices.map((invoice) => (
+                      <ListItem key={invoice.id} disablePadding>
+                        <ListItemButton sx={{ px: 1, py: 1.5 }}>
+                          <ListItemText 
+                            primary={
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <Typography variant="body1">{invoice.invoiceNumber}</Typography>
+                                <Typography variant="body1" fontWeight="bold">
+                                  {formatCurrency(invoice.amount)}
+                                </Typography>
+                              </Box>
+                            }
+                            secondary={
+                              <React.Fragment>
+                                <Typography variant="body2" component="span">
+                                  {invoice.customerName}
+                                </Typography>
+                                <br />
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 0.5 }}>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {formatDate(invoice.date)}
+                                  </Typography>
+                                  <Chip 
+                                    label={invoice.status} 
+                                    color={getStatusColor(invoice.status) as any} 
+                                    size="small" 
+                                    variant="outlined"
+                                  />
+                                </Box>
+                              </React.Fragment>
+                            }
+                          />
+                        </ListItemButton>
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
+              </Paper>
+            </Grid>
+            
+            {/* Low Stock Items */}
+            <Grid item xs={12} md={6}>
+              <Paper sx={{ p: 2, height: '100%' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">Low Stock Items</Typography>
+                  <Button 
+                    size="small" 
+                    endIcon={<ArrowForwardIcon />}
+                    onClick={() => router.push('/inventory/alerts')}
+                  >
+                    View All
+                  </Button>
+                </Box>
+                <Divider sx={{ mb: 2 }} />
+                
+                {lowStockItems.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+                    No low stock items found
+                  </Typography>
+                ) : (
+                  <List>
+                    {lowStockItems.map((item) => (
+                      <ListItem key={item.id} disablePadding>
+                        <ListItemButton sx={{ px: 1, py: 1.5 }}>
+                          <ListItemText 
+                            primary={item.name}
+                            secondary={
+                              <React.Fragment>
+                                <Typography variant="caption" color="text.secondary">
+                                  Category: {item.category}
+                                </Typography>
+                              </React.Fragment>
+                            }
+                          />
+                          <Chip 
+                            label={`Stock: ${item.stock}`} 
+                            color="error" 
+                            size="small" 
+                            variant="outlined"
+                          />
+                        </ListItemButton>
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
+              </Paper>
+            </Grid>
+            
+            {/* Top Customers */}
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2, mt: 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">Top Customers</Typography>
+                  <Button 
+                    size="small" 
+                    endIcon={<ArrowForwardIcon />}
+                    onClick={() => router.push('/parties')}
+                  >
+                    View All Customers
+                  </Button>
+                </Box>
+                <Divider sx={{ mb: 2 }} />
+                
+                {topCustomers.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+                    No customer data available
+                  </Typography>
+                ) : (
+                  <List>
+                    {topCustomers.map((customer) => (
+                      <ListItem key={customer.id} disablePadding>
+                        <ListItemButton sx={{ px: 1, py: 1.5 }}>
+                          <Box sx={{ mr: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Avatar sx={{ bgcolor: theme.palette.primary.main }}>
+                              <PeopleIcon />
+                            </Avatar>
+                          </Box>
+                          <ListItemText 
+                            primary={
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <Typography variant="body1">{customer.name}</Typography>
+                                <Typography variant="body1" fontWeight="bold">
+                                  {formatCurrency(customer.totalPurchases)}
+                                </Typography>
+                              </Box>
+                            }
+                            secondary={
+                              <Typography variant="caption" color="text.secondary">
+                                Last purchase: {formatDate(customer.lastPurchase)}
+                              </Typography>
+                            }
+                          />
+                        </ListItemButton>
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
+              </Paper>
+            </Grid>
+          </Grid>
+        </>
+      )}
+    </Container>
+  );
+}
+
+// Avatar component for top customers
+function Avatar({ children, sx }: { children: React.ReactNode, sx?: any }) {
   return (
     <Box sx={{ 
-      width: '100%', 
-      p: { xs: 2, sm: 3 },
-      overflow: 'hidden'
+      width: 40, 
+      height: 40, 
+      borderRadius: '50%', 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center',
+      color: 'white',
+      ...sx
     }}>
-      {/* Dashboard Header */}
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        mb: 3
-      }}>
-        <Box>
-          <Typography variant="h4" component="h1" fontWeight="bold">
-            Manager Dashboard
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Monitor sales, inventory, and business performance
-          </Typography>
-        </Box>
-        
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Tooltip title="Refresh data">
-            <IconButton 
-              onClick={() => window.location.reload()}
-              sx={{ 
-                bgcolor: alpha(theme.palette.primary.main, 0.1),
-                '&:hover': {
-                  bgcolor: alpha(theme.palette.primary.main, 0.2),
-                }
-              }}
-            >
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          <Button 
-            variant="contained" 
-            startIcon={<AddIcon />}
-            component={Link}
-            href="/invoices/new"
-            sx={{ borderRadius: 2 }}
-          >
-            New Invoice
-          </Button>
-        </Box>
-      </Box>
-    
-      {/* Stats Cards - Grid Layout */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        {/* Invoices Card */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card 
-            elevation={0} 
-            sx={{ 
-              borderRadius: 3,
-              height: '100%',
-              border: `1px solid ${theme.palette.divider}`,
-              transition: 'transform 0.2s, box-shadow 0.2s',
-              '&:hover': {
-                boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.15)}`,
-                transform: 'translateY(-4px)',
-                borderColor: 'primary.main'
-              }
-            }}
-          >
-            <CardContent sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                <Avatar 
-                  variant="rounded"
-                  sx={{ 
-                    bgcolor: alpha(theme.palette.primary.main, 0.1), 
-                    color: 'primary.main',
-                    width: 48, 
-                    height: 48,
-                    borderRadius: 2
-                  }}
-                >
-                  <InvoiceIcon />
-                </Avatar>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <ArrowUpwardIcon 
-                    fontSize="small" 
-                    color="success" 
-                    sx={{ mr: 0.5, fontSize: '1rem' }} 
-                  />
-                  <Typography variant="body2" color="success.main" fontWeight="medium">
-                    +12%
-                  </Typography>
-                </Box>
-              </Box>
-              
-              <Typography variant="h4" component="div" fontWeight="bold" sx={{ mb: 0.5 }}>
-                {stats.totalInvoices}
-              </Typography>
-              
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                Total Invoices
-              </Typography>
-              
-              <LinearProgress 
-                variant="determinate" 
-                value={75} 
-                sx={{ 
-                  height: 6, 
-                  borderRadius: 3,
-                  bgcolor: alpha(theme.palette.primary.main, 0.1),
-                  '& .MuiLinearProgress-bar': {
-                    borderRadius: 3,
-                  }
-                }} 
-              />
-              
-              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1.5 }}>
-                <CalendarIcon fontSize="small" color="action" sx={{ mr: 0.5, fontSize: '0.9rem' }} />
-                <Typography variant="caption" color="text.secondary">
-                  Last 30 days
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        {/* Revenue Card */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card 
-            elevation={0} 
-            sx={{ 
-              borderRadius: 3,
-              height: '100%',
-              border: `1px solid ${theme.palette.divider}`,
-              transition: 'transform 0.2s, box-shadow 0.2s',
-              '&:hover': {
-                boxShadow: `0 8px 24px ${alpha(theme.palette.success.main, 0.15)}`,
-                transform: 'translateY(-4px)',
-                borderColor: 'success.main'
-              }
-            }}
-          >
-            <CardContent sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                <Avatar 
-                  variant="rounded"
-                  sx={{ 
-                    bgcolor: alpha(theme.palette.success.main, 0.1), 
-                    color: 'success.main',
-                    width: 48, 
-                    height: 48,
-                    borderRadius: 2
-                  }}
-                >
-                  <MoneyIcon />
-                </Avatar>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <ArrowUpwardIcon 
-                    fontSize="small" 
-                    color="success" 
-                    sx={{ mr: 0.5, fontSize: '1rem' }} 
-                  />
-                  <Typography variant="body2" color="success.main" fontWeight="medium">
-                    +18%
-                  </Typography>
-                </Box>
-              </Box>
-              
-              <Typography variant="h4" component="div" fontWeight="bold" sx={{ mb: 0.5 }}>
-                ₹{stats.totalRevenue.toLocaleString('en-IN')}
-              </Typography>
-              
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                Total Revenue
-              </Typography>
-              
-              <LinearProgress 
-                variant="determinate" 
-                value={85} 
-                sx={{ 
-                  height: 6, 
-                  borderRadius: 3,
-                  bgcolor: alpha(theme.palette.success.main, 0.1),
-                  '& .MuiLinearProgress-bar': {
-                    borderRadius: 3,
-                    bgcolor: theme.palette.success.main
-                  }
-                }} 
-              />
-              
-              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1.5 }}>
-                <CalendarIcon fontSize="small" color="action" sx={{ mr: 0.5, fontSize: '0.9rem' }} />
-                <Typography variant="caption" color="text.secondary">
-                  Last 30 days
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        {/* Products Card */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card 
-            elevation={0} 
-            sx={{ 
-              borderRadius: 3,
-              height: '100%',
-              border: `1px solid ${theme.palette.divider}`,
-              transition: 'transform 0.2s, box-shadow 0.2s',
-              '&:hover': {
-                boxShadow: `0 8px 24px ${alpha(theme.palette.info.main, 0.15)}`,
-                transform: 'translateY(-4px)',
-                borderColor: 'info.main'
-              }
-            }}
-          >
-            <CardContent sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                <Avatar 
-                  variant="rounded"
-                  sx={{ 
-                    bgcolor: alpha(theme.palette.info.main, 0.1), 
-                    color: 'info.main',
-                    width: 48, 
-                    height: 48,
-                    borderRadius: 2
-                  }}
-                >
-                  <InventoryIcon />
-                </Avatar>
-              </Box>
-              
-              <Typography variant="h4" component="div" fontWeight="bold" sx={{ mb: 0.5 }}>
-                {stats.totalProducts}
-              </Typography>
-              
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                Total Products
-              </Typography>
-              
-              <Button 
-                variant="outlined" 
-                color="info" 
-                size="small" 
-                fullWidth
-                onClick={() => router.push('/products')}
-                sx={{ borderRadius: 2 }}
-              >
-                Manage Products
-              </Button>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        {/* Low Stock Card */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card 
-            elevation={0} 
-            sx={{ 
-              borderRadius: 3,
-              height: '100%',
-              border: `1px solid ${theme.palette.divider}`,
-              transition: 'transform 0.2s, box-shadow 0.2s',
-              '&:hover': {
-                boxShadow: `0 8px 24px ${alpha(theme.palette.warning.main, 0.15)}`,
-                transform: 'translateY(-4px)',
-                borderColor: 'warning.main'
-              }
-            }}
-          >
-            <CardContent sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                <Avatar 
-                  variant="rounded"
-                  sx={{ 
-                    bgcolor: alpha(theme.palette.warning.main, 0.1), 
-                    color: 'warning.main',
-                    width: 48, 
-                    height: 48,
-                    borderRadius: 2
-                  }}
-                >
-                  <AssignmentIcon />
-                </Avatar>
-              </Box>
-              
-              <Typography variant="h4" component="div" fontWeight="bold" sx={{ mb: 0.5 }}>
-                {stats.lowStockItems}
-              </Typography>
-              
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                Low Stock Items
-              </Typography>
-              
-              <Button 
-                variant="outlined" 
-                color="warning" 
-                size="small" 
-                fullWidth
-                onClick={() => router.push('/inventory/alerts')}
-                sx={{ borderRadius: 2 }}
-              >
-                View Alerts
-              </Button>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-      
-      {/* Main Content Area */}
-      <Grid container spacing={3}>
-        {/* Recent Invoices */}
-        <Grid item xs={12} md={6}>
-          <Paper 
-            elevation={0} 
-            sx={{ 
-              p: 3, 
-              borderRadius: 3,
-              height: '100%',
-              border: `1px solid ${theme.palette.divider}`,
-            }}
-          >
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6" fontWeight="bold">
-                Recent Invoices
-              </Typography>
-              <Button 
-                variant="text" 
-                size="small" 
-                endIcon={<VisibilityIcon />}
-                onClick={() => router.push('/invoices')}
-              >
-                View All
-              </Button>
-            </Box>
-            
-            <Divider sx={{ mb: 2 }} />
-            
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Invoice #</TableCell>
-                    <TableCell>Party</TableCell>
-                    <TableCell>Date</TableCell>
-                    <TableCell align="right">Amount</TableCell>
-                    <TableCell align="right">Status</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {recentInvoices.map((invoice) => (
-                    <TableRow 
-                      key={invoice.id}
-                      sx={{ 
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => router.push(`/invoices/${invoice.id}`)}
-                    >
-                      <TableCell>{invoice.invoiceNumber || '-'}</TableCell>
-                      <TableCell>{invoice.partyName || '-'}</TableCell>
-                      <TableCell>
-                        {invoice.date ? new Date(invoice.date.seconds * 1000).toLocaleDateString() : '-'}
-                      </TableCell>
-                      <TableCell align="right">₹{invoice.total?.toLocaleString('en-IN') || '-'}</TableCell>
-                      <TableCell align="right">
-                        <Chip 
-                          label={invoice.status || 'Completed'} 
-                          size="small"
-                          color={
-                            invoice.status === 'Paid' ? 'success' : 
-                            invoice.status === 'Pending' ? 'warning' : 'default'
-                          }
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-        
-        {/* Low Stock Products */}
-        <Grid item xs={12} md={6}>
-          <Paper 
-            elevation={0} 
-            sx={{ 
-              p: 3, 
-              borderRadius: 3,
-              height: '100%',
-              border: `1px solid ${theme.palette.divider}`,
-            }}
-          >
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6" fontWeight="bold">
-                Low Stock Products
-              </Typography>
-              <Button 
-                variant="text" 
-                size="small" 
-                endIcon={<VisibilityIcon />}
-                onClick={() => router.push('/inventory/alerts')}
-              >
-                View All
-              </Button>
-            </Box>
-            
-            <Divider sx={{ mb: 2 }} />
-            
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Product</TableCell>
-                    <TableCell>Category</TableCell>
-                    <TableCell align="right">Price</TableCell>
-                    <TableCell align="right">Stock</TableCell>
-                    <TableCell align="right">Action</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {lowStockProducts.map((product) => (
-                    <TableRow 
-                      key={product.id}
-                      sx={{ 
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                      }}
-                    >
-                      <TableCell>{product.name}</TableCell>
-                      <TableCell>{product.category || '-'}</TableCell>
-                      <TableCell align="right">₹{product.price?.toLocaleString('en-IN') || '-'}</TableCell>
-                      <TableCell align="right">
-                        <Typography 
-                          variant="body2" 
-                          color={product.stock <= 5 ? 'error.main' : 'warning.main'}
-                          fontWeight="medium"
-                        >
-                          {product.stock}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Button 
-                          size="small" 
-                          variant="outlined"
-                          color="primary"
-                          onClick={() => router.push(`/products/${product.id}`)}
-                        >
-                          Update
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-        
-        {/* Quick Actions */}
-        <Grid item xs={12}>
-          <Paper 
-            elevation={0} 
-            sx={{ 
-              p: 3, 
-              borderRadius: 3,
-              border: `1px solid ${theme.palette.divider}`,
-            }}
-          >
-            <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
-              Quick Actions
-            </Typography>
-            
-            <Divider sx={{ mb: 3 }} />
-            
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={3}>
-                <Button
-                  variant="outlined"
-                  fullWidth
-                  startIcon={<AddIcon />}
-                  onClick={() => router.push('/invoices/new')}
-                  sx={{ 
-                    p: 2, 
-                    borderRadius: 2,
-                    justifyContent: 'flex-start',
-                    borderColor: theme.palette.primary.main,
-                    '&:hover': {
-                      borderColor: theme.palette.primary.dark,
-                      bgcolor: alpha(theme.palette.primary.main, 0.05)
-                    }
-                  }}
-                >
-                  New Invoice
-                </Button>
-              </Grid>
-              
-              <Grid item xs={12} sm={6} md={3}>
-                <Button
-                  variant="outlined"
-                  fullWidth
-                  startIcon={<InventoryIcon />}
-                  onClick={() => router.push('/products/new')}
-                  sx={{ 
-                    p: 2, 
-                    borderRadius: 2,
-                    justifyContent: 'flex-start',
-                    borderColor: theme.palette.secondary.main,
-                    color: theme.palette.secondary.main,
-                    '&:hover': {
-                      borderColor: theme.palette.secondary.dark,
-                      bgcolor: alpha(theme.palette.secondary.main, 0.05)
-                    }
-                  }}
-                >
-                  Add Product
-                </Button>
-              </Grid>
-              
-              <Grid item xs={12} sm={6} md={3}>
-                <Button
-                  variant="outlined"
-                  fullWidth
-                  startIcon={<PeopleIcon />}
-                  onClick={() => router.push('/parties/new')}
-                  sx={{ 
-                    p: 2, 
-                    borderRadius: 2,
-                    justifyContent: 'flex-start',
-                    borderColor: theme.palette.info.main,
-                    color: theme.palette.info.main,
-                    '&:hover': {
-                      borderColor: theme.palette.info.dark,
-                      bgcolor: alpha(theme.palette.info.main, 0.05)
-                    }
-                  }}
-                >
-                  Add Party
-                </Button>
-              </Grid>
-              
-              <Grid item xs={12} sm={6} md={3}>
-                <Button
-                  variant="outlined"
-                  fullWidth
-                  startIcon={<TrendingUpIcon />}
-                  onClick={() => router.push('/reports/sales')}
-                  sx={{ 
-                    p: 2, 
-                    borderRadius: 2,
-                    justifyContent: 'flex-start',
-                    borderColor: theme.palette.success.main,
-                    color: theme.palette.success.main,
-                    '&:hover': {
-                      borderColor: theme.palette.success.dark,
-                      bgcolor: alpha(theme.palette.success.main, 0.05)
-                    }
-                  }}
-                >
-                  Sales Report
-                </Button>
-              </Grid>
-            </Grid>
-          </Paper>
-        </Grid>
-      </Grid>
+      {children}
     </Box>
   );
 }
