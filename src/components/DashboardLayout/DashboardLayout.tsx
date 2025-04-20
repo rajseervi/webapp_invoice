@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, ReactNode, useEffect } from 'react';
+import React, { useState, ReactNode, useEffect, useRef } from 'react';
 import { 
   Box, 
   CssBaseline, 
@@ -11,15 +11,31 @@ import {
   useMediaQuery,
   useTheme,
   Tooltip,
+  Avatar,
+  Menu,
+  MenuItem,
+  Divider,
+  Badge,
+  Button,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import { useAuth } from '@/contexts/AuthContext';
 import { alpha } from '@mui/material/styles';
 import {
   Menu as MenuIcon,
   Close as CloseIcon,
+  Notifications as NotificationsIcon,
+  Settings as SettingsIcon,
+  Person as PersonIcon,
+  Logout as LogoutIcon,
+  DarkMode as DarkModeIcon,
+  LightMode as LightModeIcon,
+  Help as HelpIcon,
 } from '@mui/icons-material';
 import { useRouter, usePathname } from 'next/navigation';
-import Navigation from './FixedNavigation';
+import ImprovedNavigation from './ImprovedNavigation';
+import { handleLogout } from '@/utils/authRedirects';
 
 // Constants
 const DRAWER_WIDTH = 260;
@@ -33,7 +49,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const theme = useTheme();
   const router = useRouter();
   const pathname = usePathname();
-  const { currentUser, userRole } = useAuth();
+  const { currentUser, userRole, logout } = useAuth();
   
   // Use strict breakpoint to ensure proper detection of mobile devices
   const isMobile = useMediaQuery(theme.breakpoints.down('md'), {
@@ -43,6 +59,24 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   
   // Simple drawer state - just open or closed
   const [drawerOpen, setDrawerOpen] = useState(!isMobile);
+  
+  // User profile menu state
+  const [profileMenuAnchor, setProfileMenuAnchor] = useState<null | HTMLElement>(null);
+  const profileMenuOpen = Boolean(profileMenuAnchor);
+  
+  // Notifications menu state
+  const [notificationsAnchor, setNotificationsAnchor] = useState<null | HTMLElement>(null);
+  const notificationsOpen = Boolean(notificationsAnchor);
+  
+  // Mock notifications data
+  const [notifications, setNotifications] = useState([
+    { id: 1, message: 'New invoice created', read: false, time: '10 minutes ago' },
+    { id: 2, message: 'Low stock alert: Laptop XPS 15', read: false, time: '1 hour ago' },
+    { id: 3, message: 'Payment received from Acme Corp', read: true, time: '3 hours ago' },
+  ]);
+  
+  // Get unread notifications count
+  const unreadNotificationsCount = notifications.filter(n => !n.read).length;
   
   // Save drawer state to localStorage
   const saveDrawerState = (isOpen: boolean) => {
@@ -70,6 +104,53 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const handleNavItemClick = () => {
     // Always close drawer after navigation
     closeDrawer();
+  };
+  
+  // Handle profile menu open
+  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setProfileMenuAnchor(event.currentTarget);
+  };
+  
+  // Handle profile menu close
+  const handleProfileMenuClose = () => {
+    setProfileMenuAnchor(null);
+  };
+  
+  // Handle notifications menu open
+  const handleNotificationsOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setNotificationsAnchor(event.currentTarget);
+  };
+  
+  // Handle notifications menu close
+  const handleNotificationsClose = () => {
+    setNotificationsAnchor(null);
+  };
+  
+  // Handle mark all notifications as read
+  const handleMarkAllAsRead = () => {
+    setNotifications(notifications.map(n => ({ ...n, read: true })));
+    handleNotificationsClose();
+  };
+  
+  // Handle logout
+  const handleUserLogout = () => {
+    handleProfileMenuClose();
+    handleLogout(logout, router);
+  };
+  
+  // Get user initials for avatar
+  const getUserInitials = () => {
+    if (currentUser?.displayName) {
+      return currentUser.displayName
+        .split(' ')
+        .map(name => name[0])
+        .join('')
+        .toUpperCase()
+        .substring(0, 2);
+    } else if (currentUser?.email) {
+      return currentUser.email[0].toUpperCase();
+    }
+    return 'U';
   };
   
   // Listen for route changes to close drawer
@@ -196,8 +277,225 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </Typography>
           </Box>
           
-          {/* Right side of AppBar - intentionally left empty */}
-          <Box></Box>
+          {/* Right side of AppBar - User profile and notifications */}
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            {/* Quick Actions */}
+            <Box sx={{ display: { xs: 'none', md: 'flex' }, mr: 2 }}>
+              <Button 
+                variant="contained" 
+                size="small"
+                onClick={() => router.push('/invoices/new')}
+                sx={{ 
+                  mr: 1.5, 
+                  bgcolor: alpha(theme.palette.common.white, 0.15),
+                  color: 'white',
+                  '&:hover': {
+                    bgcolor: alpha(theme.palette.common.white, 0.25),
+                  },
+                  textTransform: 'none',
+                  fontWeight: 500,
+                }}
+              >
+                New Invoice
+              </Button>
+            </Box>
+            
+            {/* Notifications */}
+            <Tooltip title="Notifications">
+              <IconButton
+                color="inherit"
+                onClick={handleNotificationsOpen}
+                size="medium"
+                sx={{
+                  mr: 1.5,
+                  bgcolor: theme.palette.mode === 'dark' 
+                    ? alpha(theme.palette.background.paper, 0.15) 
+                    : alpha(theme.palette.common.white, 0.15),
+                  '&:hover': {
+                    bgcolor: theme.palette.mode === 'dark' 
+                      ? alpha(theme.palette.background.paper, 0.25) 
+                      : alpha(theme.palette.common.white, 0.25),
+                  },
+                }}
+              >
+                <Badge badgeContent={unreadNotificationsCount} color="error">
+                  <NotificationsIcon />
+                </Badge>
+              </IconButton>
+            </Tooltip>
+            
+            {/* User Profile */}
+            <Tooltip title="Account settings">
+              <IconButton
+                onClick={handleProfileMenuOpen}
+                size="medium"
+                sx={{
+                  bgcolor: theme.palette.mode === 'dark' 
+                    ? alpha(theme.palette.background.paper, 0.15) 
+                    : alpha(theme.palette.common.white, 0.15),
+                  '&:hover': {
+                    bgcolor: theme.palette.mode === 'dark' 
+                      ? alpha(theme.palette.background.paper, 0.25) 
+                      : alpha(theme.palette.common.white, 0.25),
+                  },
+                }}
+              >
+                <Avatar 
+                  sx={{ 
+                    width: 32, 
+                    height: 32, 
+                    bgcolor: theme.palette.secondary.main,
+                    fontSize: '0.875rem',
+                    fontWeight: 600
+                  }}
+                  src={currentUser?.photoURL || undefined}
+                >
+                  {getUserInitials()}
+                </Avatar>
+              </IconButton>
+            </Tooltip>
+            
+            {/* Notifications Menu */}
+            <Menu
+              anchorEl={notificationsAnchor}
+              open={notificationsOpen}
+              onClose={handleNotificationsClose}
+              PaperProps={{
+                elevation: 3,
+                sx: {
+                  overflow: 'visible',
+                  filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.15))',
+                  mt: 1.5,
+                  width: 320,
+                  maxHeight: 400,
+                  '& .MuiAvatar-root': {
+                    width: 32,
+                    height: 32,
+                    ml: -0.5,
+                    mr: 1,
+                  },
+                },
+              }}
+              transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+              anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+            >
+              <Box sx={{ px: 2, py: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="subtitle1" fontWeight={600}>Notifications</Typography>
+                <Button 
+                  size="small" 
+                  onClick={handleMarkAllAsRead}
+                  disabled={unreadNotificationsCount === 0}
+                >
+                  Mark all as read
+                </Button>
+              </Box>
+              <Divider />
+              {notifications.length === 0 ? (
+                <Box sx={{ py: 2, px: 2, textAlign: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">No notifications</Typography>
+                </Box>
+              ) : (
+                notifications.map((notification) => (
+                  <MenuItem 
+                    key={notification.id} 
+                    onClick={handleNotificationsClose}
+                    sx={{ 
+                      py: 1.5, 
+                      px: 2,
+                      borderLeft: notification.read ? 'none' : `4px solid ${theme.palette.primary.main}`,
+                      bgcolor: notification.read ? 'transparent' : alpha(theme.palette.primary.main, 0.05),
+                    }}
+                  >
+                    <Box sx={{ width: '100%' }}>
+                      <Typography variant="body2" fontWeight={notification.read ? 400 : 600}>
+                        {notification.message}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {notification.time}
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                ))
+              )}
+              <Divider />
+              <MenuItem onClick={() => {
+                handleNotificationsClose();
+                router.push('/notifications');
+              }}>
+                <Typography variant="body2" color="primary" sx={{ width: '100%', textAlign: 'center' }}>
+                  View all notifications
+                </Typography>
+              </MenuItem>
+            </Menu>
+            
+            {/* User Profile Menu */}
+            <Menu
+              anchorEl={profileMenuAnchor}
+              open={profileMenuOpen}
+              onClose={handleProfileMenuClose}
+              PaperProps={{
+                elevation: 3,
+                sx: {
+                  overflow: 'visible',
+                  filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.15))',
+                  mt: 1.5,
+                  width: 220,
+                  '& .MuiAvatar-root': {
+                    width: 32,
+                    height: 32,
+                    ml: -0.5,
+                    mr: 1,
+                  },
+                },
+              }}
+              transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+              anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+            >
+              <Box sx={{ px: 2, py: 1.5 }}>
+                <Typography variant="subtitle1" fontWeight={600}>
+                  {currentUser?.displayName || currentUser?.email || 'User'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {userRole?.charAt(0).toUpperCase() + userRole?.slice(1) || 'User'}
+                </Typography>
+              </Box>
+              <Divider />
+              <MenuItem onClick={() => {
+                handleProfileMenuClose();
+                router.push('/profile');
+              }}>
+                <ListItemIcon>
+                  <PersonIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>My Profile</ListItemText>
+              </MenuItem>
+              <MenuItem onClick={() => {
+                handleProfileMenuClose();
+                router.push('/settings');
+              }}>
+                <ListItemIcon>
+                  <SettingsIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>Settings</ListItemText>
+              </MenuItem>
+              <MenuItem onClick={() => {
+                handleProfileMenuClose();
+                router.push('/help');
+              }}>
+                <ListItemIcon>
+                  <HelpIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>Help & Support</ListItemText>
+              </MenuItem>
+              <Divider />
+              <MenuItem onClick={handleUserLogout}>
+                <ListItemIcon>
+                  <LogoutIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>Logout</ListItemText>
+              </MenuItem>
+            </Menu>
+          </Box>
         </Toolbar>
       </AppBar>
       
@@ -260,7 +558,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             background: alpha(theme.palette.divider, 0.5),
           },
         }}>
-          <Navigation 
+          <ImprovedNavigation 
             onItemClick={handleNavItemClick}
             miniDrawer={false}
           />
