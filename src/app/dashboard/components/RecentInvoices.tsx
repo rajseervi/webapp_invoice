@@ -138,22 +138,24 @@ const RecentInvoices = memo(({ recentInvoices, loading, formatCurrency, formatDa
                   }
                   secondary={
                     <React.Fragment>
-                      <Typography variant="body2" component="span">
+                      <Typography variant="body2" component="span"> {/* This was already correct */}
                         {invoice.customerName}
                       </Typography>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 0.5 }}>
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="caption" color="text.secondary" component="span"> {/* Changed component to span */}
                           {formatDate(invoice.date)}
                         </Typography>
                         <Chip 
                           label={invoice.status} 
                           color={getStatusColor(invoice.status) as any} 
-                          size="small" 
+                          size="small"
                           variant="outlined"
+                          sx={{ ml: 1 }}
                         />
                       </Box>
                     </React.Fragment>
                   }
+                  secondaryTypographyProps={{ component: 'div' }} // Add this line to fix nesting
                 />
               </ListItemButton>
             </ListItem>

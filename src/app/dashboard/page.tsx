@@ -3,25 +3,14 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   CircularProgress,
-  Grid,
-  Card,
-  CardContent,
-  Divider,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemText,
-  Chip,
-  TextField,
-  InputAdornment,
-  Avatar,
-  IconButton,
+  Grid, 
   Paper,
   Typography,
   Button,
   useTheme,
   Container,
-  Alert
+  Alert,
+  alpha
 } from '@mui/material';
 import {
   Receipt as ReceiptIcon,
@@ -31,7 +20,8 @@ import {
   People as PeopleIcon,
   ArrowForward as ArrowForwardIcon,
   Add as AddIcon,
-  Search as SearchIcon
+  Search as SearchIcon,
+  Analytics as AnalyticsIcon
 } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
 import {
@@ -51,9 +41,15 @@ import {
 } from 'recharts';
 
 // Import custom hook for data fetching and layout component
-import { useDashboardData } from './hooks/useDashboardData';
-// import DashboardLayout from '@app/components/DashboardLayout';
-import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
+import { useDashboardData } from './hooks/useDashboardData'; 
+// import SimpleDashboardLayout from './components/DashboardLayout';
+
+
+import DashboardLayout from '@/components/DashboardLayout/DashboardLayout'; 
+// Import the quick actions component
+import QuickActions from '@/components/Common/QuickActions';
+// Import the dashboard skeleton for loading state
+import DashboardSkeleton from '@/components/Dashboard/DashboardSkeleton';
 // Import utility functions
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -157,510 +153,335 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <Container maxWidth="lg">
-        
-        
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        )}
-        
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-            <CircularProgress />
-          </Box>
-        ) : (
-          <>
-            {/* Stats Cards */}
-            <Grid container spacing={3} sx={{ mb: 4 }}>
-              {statsWithIcons.map((stat, index) => (
-                <Grid item xs={12} sm={6} md={3} key={index}>
-                  <Card sx={{ 
-                    height: '100%', 
-                    borderRadius: 2,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-                    transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                    '&:hover': {
-                      transform: 'translateY(-4px)',
-                      boxShadow: '0 12px 20px rgba(0,0,0,0.1)'
-                    }
-                  }}>
-                    <CardContent>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Box>
-                          <Typography variant="subtitle2" color="text.secondary">
-                            {stat.name}
-                          </Typography>
-                          <Typography variant="h4" sx={{ my: 1, fontWeight: 600 }}>
-                            {stat.name === 'Today\'s Sales' ? formatCurrency(stat.value) : stat.value.toLocaleString()}
-                          </Typography>
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <Typography 
-                              variant="body2" 
-                              color={stat.change >= 0 ? 'success.main' : 'error.main'}
-                              sx={{ display: 'flex', alignItems: 'center', fontWeight: 500 }}
-                            >
-                              {stat.change >= 0 ? '+' : ''}{stat.change}%
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-                              vs last month
-                            </Typography>
-                          </Box>
-                        </Box>
-                        <Box 
-                          sx={{ 
-                            p: 1.5, 
-                            borderRadius: '50%', 
-                            bgcolor: `${stat.color}20`
-                          }}
-                        >
-                          <Box sx={{ color: stat.color }}>
-                            {stat.icon}
-                          </Box>
-                        </Box>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
+      {error && (
+        <Alert 
+          severity="error" 
+          sx={{ 
+            mb: 3, 
+            borderRadius: 2,
+            boxShadow: theme => `0 2px 10px ${alpha(theme.palette.error.main, 0.15)}`
+          }}
+        >
+          {error}
+        </Alert>
+      )}
+      
+      {loading ? (
+        <DashboardSkeleton />
+      ) : (
+        <>
+          {/* Welcome Section with Gradient Background */}
+          <Paper
+            elevation={0}
+            sx={{
+              mb: 4,
+              p: { xs: 3, md: 4 },
+              borderRadius: 3,
+              background: theme => `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.primary.main, 0.1)} 100%)`,
+              border: theme => `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Decorative Elements */}
+            <Box
+              sx={{
+                position: 'absolute',
+                top: -20,
+                right: -20,
+                width: 200,
+                height: 200,
+                borderRadius: '50%',
+                background: theme => `radial-gradient(circle, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.primary.main, 0.05)} 70%, transparent 100%)`,
+              }}
+            />
+            <Box
+              sx={{
+                position: 'absolute',
+                bottom: -30,
+                left: -30,
+                width: 150,
+                height: 150,
+                borderRadius: '50%',
+                background: theme => `radial-gradient(circle, ${alpha(theme.palette.secondary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.main, 0.05)} 70%, transparent 100%)`,
+              }}
+            />
             
-            {/* Charts Section */}
-            <Grid container spacing={3} sx={{ mb: 4 }}>
-              {/* Monthly Sales Chart */}
-            {/*   <Grid item xs={12} md={8}>
-                <Paper sx={{ 
-                  p: 3, 
-                  height: '100%', 
-                  borderRadius: 2,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-                }}>
-                  <Typography variant="h6" gutterBottom>
-                    Monthly Sales Performance
+            <Grid container spacing={3} alignItems="center">
+              <Grid item xs={12} md={7}>
+                <Box sx={{ position: 'relative', zIndex: 1 }}>
+                  <Typography 
+                    variant="h3" 
+                    component="h1" 
+                    gutterBottom 
+                    fontWeight={800}
+                    sx={{ 
+                      fontSize: { xs: '2rem', md: '2.5rem' },
+                      background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      mb: 1
+                    }}
+                  >
+                    Welcome to your Dashboard
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Comparison of actual sales vs targets for the last 6 months
+                  <Typography variant="h6" color="text.secondary" sx={{ mb: 2, fontWeight: 400 }}>
+                    Get a quick overview of your business performance and access key features.
                   </Typography>
-                  <Box sx={{ height: 300 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={monthlySalesData}
-                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip 
-                          formatter={(value) => formatCurrency(value)}
-                          labelStyle={{ fontWeight: 'bold' }}
-                        />
-                        <Legend />
-                        <Bar 
-                          dataKey="sales" 
-                          name="Actual Sales" 
-                          fill={theme.palette.primary.main} 
-                          radius={[4, 4, 0, 0]}
-                        />
-                        <Bar 
-                          dataKey="target" 
-                          name="Target" 
-                          fill={theme.palette.grey[300]} 
-                          radius={[4, 4, 0, 0]}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </Box>
-                </Paper>
-              </Grid> */}
-              
-              {/* Category Sales Pie Chart */}
-              {/* <Grid item xs={12} md={4}>
-                <Paper sx={{ 
-                  p: 3, 
-                  height: '100%', 
-                  borderRadius: 2,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-                }}>
-                  <Typography variant="h6" gutterBottom>
-                    Sales by Category
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Distribution of sales across product categories
-                  </Typography>
-                  <Box sx={{ height: 300, display: 'flex', justifyContent: 'center' }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={categorySalesData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={90}
-                          paddingAngle={2}
-                          dataKey="value"
-                          label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                          labelLine={false}
-                        >
-                          {categorySalesData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(value) => `${value}%`} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </Box>
-                </Paper>
-              </Grid>
-             */}  
-              {/* Daily Sales Trend */}
-            {/*   <Grid item xs={12}>
-                <Paper sx={{ 
-                  p: 3, 
-                  borderRadius: 2,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-                }}>
-                  <Typography variant="h6" gutterBottom>
-                    Daily Sales Trend
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Sales performance over the last 30 days
-                  </Typography>
-                  <Box sx={{ height: 300 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart
-                        data={dailySalesData}
-                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis 
-                          dataKey="date" 
-                          tick={{ fontSize: 12 }}
-                          tickFormatter={(value) => {
-                            // Show fewer ticks for better readability
-                            const index = dailySalesData.findIndex(item => item.date === value);
-                            return index % 5 === 0 ? value : '';
-                          }}
-                        />
-                        <YAxis />
-                        <Tooltip formatter={(value) => formatCurrency(value)} />
-                        <Area 
-                          type="monotone" Monthly Sales Performance
-                          dataKey="amount" 
-                          name="Sales" 
-                          stroke={theme.palette.primary.main}
-                          fill={`${theme.palette.primary.main}20`}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </Box>
-                </Paper>
-              </Grid> */}
-            </Grid>
-            
-            <Grid container spacing={3}>
-              {/* Recent Invoices */}
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ 
-                  p: 3, 
-                  height: '100%', 
-                  borderRadius: 2,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-                }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                    <Typography variant="h6">Recent Invoices</Typography>
-                    <Button 
-                      size="small" 
-                      endIcon={<ArrowForwardIcon />}
-                      onClick={() => router.push('/invoices')}
-                    >
-                      View All
-                    </Button>
-                  </Box>
-                  <Divider sx={{ mb: 2 }} />
-                  
-                  {recentInvoices.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                      No recent invoices found
-                    </Typography>
-                  ) : (
-                    <List sx={{ p: 0 }}>
-                      {recentInvoices.map((invoice) => (
-                        <ListItem 
-                          key={invoice.id} 
-                          disablePadding 
-                          sx={{ 
-                            mb: 1,
-                            '&:last-child': { mb: 0 }
-                          }}
-                        >
-                          <ListItemButton 
-                            sx={{ 
-                              px: 2, 
-                              py: 1.5, 
-                              borderRadius: 1,
-                              '&:hover': { bgcolor: 'action.hover' }
-                            }}
-                            onClick={() => router.push(`/invoices/${invoice.id}`)}
-                          >
-                            <ListItemText 
-                              primary={
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                  <Typography variant="body1" fontWeight={500}>
-                                    {invoice.invoiceNumber}
-                                  </Typography>
-                                  <Typography variant="body1" fontWeight="bold">
-                                    {formatCurrency(invoice.amount)}
-                                  </Typography>
-                                </Box>
-                              }
-                              secondary={
-                                <React.Fragment>
-                                  <Typography variant="body2" component="span">
-                                    {invoice.customerName}
-                                  </Typography>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 0.5 }}>
-                                    <Typography variant="caption" color="text.secondary">
-                                      {formatDate(invoice.date)}
-                                    </Typography>
-                                    <Chip 
-                                      label={invoice.status} 
-                                      color={getStatusColor(invoice.status)} 
-                                      size="small" 
-                                      variant="outlined"
-                                    />
-                                  </Box>
-                                </React.Fragment>
-                              }
-                            />
-                          </ListItemButton>
-                        </ListItem>
-                      ))}
-                    </List>
-                  )}
-                  
-                  <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
+                  <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
                     <Button 
                       variant="contained" 
-                      startIcon={<AddIcon />}
-                      onClick={() => router.push('/invoices/new')}
-                      fullWidth
+                      color="primary" 
+                      size="large"
+                      onClick={() => router.push('/analytics')}
                       sx={{ 
                         borderRadius: 2,
-                        py: 1,
-                        bgcolor: theme.palette.success.main,
-                        '&:hover': { bgcolor: theme.palette.success.dark }
+                        px: 3,
+                        boxShadow: theme => `0 4px 14px ${alpha(theme.palette.primary.main, 0.4)}`
                       }}
                     >
-                      Create New Invoice
+                      View Analytics
                     </Button>
-                  </Box>
-                </Paper>
-              </Grid>
-              
-              {/* Top Customers with Quick Invoice */}
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ 
-                  p: 3, 
-                  height: '100%', 
-                  borderRadius: 2,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-                }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                    <Typography variant="h6">Top Customers</Typography>
-                    <Button 
-                      size="small" 
-                      endIcon={<ArrowForwardIcon />}
-                      onClick={() => router.push('/parties')}
-                    >
-                      View All
-                    </Button>
-                  </Box>
-                  <Divider sx={{ mb: 2 }} />
-                  
-                  <TextField
-                    fullWidth
-                    placeholder="Search customers..."
-                    variant="outlined"
-                    size="small"
-                    value={customerSearchQuery}
-                    onChange={(e) => setCustomerSearchQuery(e.target.value)}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    }}
-                    sx={{ mb: 2 }}
-                  />
-                  
-                  {filteredCustomers.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                      No customers found
-                    </Typography>
-                  ) : (
-                    <List sx={{ p: 0 }}>
-                      {filteredCustomers.map((customer) => (
-                        <ListItem 
-                          key={customer.id} 
-                          disablePadding 
-                          sx={{ 
-                            mb: 1,
-                            '&:last-child': { mb: 0 }
-                          }}
-                        >
-                          <ListItemButton 
-                            sx={{ 
-                              px: 2, 
-                              py: 1.5, 
-                              borderRadius: 1,
-                              '&:hover': { bgcolor: 'action.hover' }
-                            }}
-                            onClick={() => router.push(`/parties?id=${customer.id}`)}
-                          >
-                            <Avatar 
-                              sx={{ 
-                                mr: 2, 
-                                bgcolor: getCustomerAvatarColor(customer.id),
-                                width: 40,
-                                height: 40
-                              }}
-                            >
-                              {getCustomerInitial(customer.name)}
-                            </Avatar>
-                            <ListItemText 
-                              primary={
-                                <Typography variant="body1" fontWeight={500}>
-                                  {customer.name}
-                                </Typography>
-                              }
-                              secondary={
-                                <React.Fragment>
-                                  <Typography variant="body2" component="span" color="text.secondary">
-                                    Total: {formatCurrency(customer.totalPurchases)}
-                                  </Typography>
-                                  <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
-                                    Last purchase: {formatDate(customer.lastPurchase)}
-                                  </Typography>
-                                </React.Fragment>
-                              }
-                            />
-                            <IconButton 
-                              color="primary"
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/invoices/new?customer=${customer.id}`);
-                              }}
-                              sx={{ 
-                                ml: 1,
-                                bgcolor: `${theme.palette.primary.main}10`,
-                                '&:hover': { bgcolor: `${theme.palette.primary.main}20` }
-                              }}
-                              title="Create invoice for this customer"
-                            >
-                              <ReceiptIcon fontSize="small" />
-                            </IconButton>
-                          </ListItemButton>
-                        </ListItem>
-                      ))}
-                    </List>
-                  )}
-                  
-                  <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
                     <Button 
                       variant="outlined" 
-                      startIcon={<PersonIcon />}
-                      onClick={() => router.push('/parties')}
-                      fullWidth
-                      sx={{ 
-                        borderRadius: 2,
-                        py: 1
-                      }}
+                      color="primary"
+                      size="large"
+                      onClick={() => router.push('/invoices')}
+                      sx={{ borderRadius: 2, px: 3 }}
                     >
-                      Add New Customer
+                      Manage Invoices
                     </Button>
                   </Box>
-                </Paper>
+                </Box>
+              </Grid>
+              <Grid item xs={12} md={5} sx={{ display: { xs: 'none', md: 'block' } }}>
+                <Box 
+                  sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'center',
+                    position: 'relative',
+                    zIndex: 1
+                  }}
+                >
+                  <Box 
+                    component="img" 
+                    src="/dashboard-illustration.svg" 
+                    alt="Dashboard Illustration"
+                    sx={{ 
+                      maxWidth: '100%', 
+                      height: 'auto',
+                      maxHeight: 200,
+                      opacity: 0.9
+                    }}
+                    onError={(e) => {
+                      // Fallback if image doesn't exist
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </Box>
+              </Grid>
+            </Grid>
+          </Paper>
+          
+          <Container 
+            maxWidth="xl" 
+            disableGutters 
+            sx={{ 
+              px: { xs: 0, sm: 2 }
+            }}
+          >
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+              {/* Quick Actions Section */}
+              <Grid item xs={12} md={6} lg={4}>
+                <QuickActions variant="grid" showLabels={true} />
               </Grid>
               
-              {/* Low Stock Items */}
-              <Grid item xs={12}>
-                <Paper sx={{ 
-                  p: 3, 
-                  borderRadius: 2,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-                  mt: 3
-                }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                    <Typography variant="h6">Low Stock Items</Typography>
-                    <Button 
-                      size="small" 
-                      endIcon={<ArrowForwardIcon />}
-                      onClick={() => router.push('/products')}
-                    >
-                      View All Products
-                    </Button>
+              {/* Analytics Preview */}
+              <Grid item xs={12} md={6} lg={8}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 0,
+                    borderRadius: 3,
+                    bgcolor: theme.palette.background.paper,
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    border: theme => `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                    transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                    '&:hover': {
+                      boxShadow: theme => `0 8px 24px ${alpha(theme.palette.primary.main, 0.1)}`,
+                      transform: 'translateY(-4px)'
+                    }
+                  }}
+                >
+                  <Box 
+                    sx={{ 
+                      background: theme => `linear-gradient(135deg, ${alpha(theme.palette.primary.dark, 0.9)} 0%, ${alpha(theme.palette.primary.main, 0.85)} 100%)`,
+                      p: 3,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      color: 'white'
+                    }}
+                  >
+                    {/* Decorative circles */}
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: -30,
+                        right: -30,
+                        width: 120,
+                        height: 120,
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                      }}
+                    />
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        bottom: -20,
+                        left: 30,
+                        width: 80,
+                        height: 80,
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                      }}
+                    />
+                    
+                    <Box sx={{ position: 'relative', zIndex: 1 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <AnalyticsIcon sx={{ fontSize: 24, mr: 1 }} />
+                          <Typography variant="h6" fontWeight={600}>
+                            Analytics Overview
+                          </Typography>
+                        </Box>
+                        <Button 
+                          size="small" 
+                          endIcon={<ArrowForwardIcon />}
+                          onClick={() => router.push('/analytics')}
+                          sx={{ 
+                            color: 'white', 
+                            bgcolor: 'rgba(255, 255, 255, 0.1)',
+                            '&:hover': {
+                              bgcolor: 'rgba(255, 255, 255, 0.2)',
+                            }
+                          }}
+                        >
+                          View Details
+                        </Button>
+                      </Box>
+                      
+                      <Typography variant="body2" sx={{ mb: 2, opacity: 0.9, maxWidth: '80%' }}>
+                        Track your business performance with real-time analytics and actionable insights.
+                      </Typography>
+                    </Box>
                   </Box>
-                  <Divider sx={{ mb: 2 }} />
                   
-                  {lowStockItems.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                      No low stock items found
-                    </Typography>
-                  ) : (
+                  <Box sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <Grid container spacing={2}>
-                      {lowStockItems.map((item) => (
-                        <Grid item xs={12} sm={6} md={4} key={item.id}>
-                          <Card 
-                            variant="outlined" 
-                            sx={{ 
-                              borderRadius: 2,
-                              borderColor: item.stock < 5 ? theme.palette.error.light : theme.palette.warning.light,
-                              '&:hover': { 
-                                borderColor: item.stock < 5 ? theme.palette.error.main : theme.palette.warning.main,
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                              },
-                              transition: 'all 0.2s ease'
-                            }}
-                          >
-                            <CardContent>
-                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <Box>
-                                  <Typography variant="subtitle1" fontWeight={500}>
-                                    {item.name}
-                                  </Typography>
-                                  <Typography variant="body2" color="text.secondary">
-                                    Category: {item.category}
-                                  </Typography>
-                                </Box>
-                                <Chip 
-                                  label={`${item.stock} left`} 
-                                  color={item.stock < 5 ? 'error' : 'warning'} 
-                                  size="small"
-                                />
+                      {/* Mini Stats */}
+                      {[
+                        { label: 'Active Users', value: '2,845', change: '+12%', icon: <PeopleIcon />, color: theme.palette.primary.main },
+                        { label: 'Page Views', value: '18.5K', change: '+8%', icon: <TrendingUpIcon />, color: theme.palette.success.main },
+                        { label: 'Conversion', value: '3.2%', change: '+0.6%', icon: <ReceiptIcon />, color: theme.palette.info.main }
+                      ].map((stat, index) => (
+                        <Grid item xs={12} md={4} key={index}>
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <Box
+                              sx={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: 2,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                bgcolor: alpha(stat.color, 0.1),
+                                color: stat.color,
+                                mr: 2
+                              }}
+                            >
+                              {stat.icon}
+                            </Box>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary">
+                                {stat.label}
+                              </Typography>
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                <Typography variant="h6" sx={{ mr: 1, fontWeight: 600 }}>
+                                  {stat.value}
+                                </Typography>
+                                <Typography 
+                                  variant="caption" 
+                                  sx={{ 
+                                    color: stat.change.startsWith('+') ? 'success.main' : 'error.main',
+                                    fontWeight: 500
+                                  }}
+                                >
+                                  {stat.change}
+                                </Typography>
                               </Box>
-                              <Button
-                                size="small"
-                                variant="text"
-                                onClick={() => router.push(`/products?id=${item.id}`)}
-                                sx={{ mt: 1 }}
-                              >
-                                Update Stock
-                              </Button>
-                            </CardContent>
-                          </Card>
+                            </Box>
+                          </Box>
                         </Grid>
                       ))}
                     </Grid>
-                  )}
+                    
+                    <Box sx={{ flex: 1, mt: 3, minHeight: 200 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart
+                          data={dailySalesData}
+                          margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                        >
+                          <defs>
+                            <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.8}/>
+                              <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <XAxis 
+                            dataKey="date" 
+                            tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
+                            axisLine={{ stroke: theme.palette.divider }}
+                            tickLine={{ stroke: theme.palette.divider }}
+                          />
+                          <YAxis 
+                            tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
+                            axisLine={{ stroke: theme.palette.divider }}
+                            tickLine={{ stroke: theme.palette.divider }}
+                          />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={alpha(theme.palette.divider, 0.5)} />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: theme.palette.background.paper,
+                              borderColor: theme.palette.divider,
+                              borderRadius: 8,
+                              boxShadow: theme.shadows[3]
+                            }}
+                          />
+                          <Area 
+                            type="monotone" 
+                            dataKey="amount" 
+                            stroke={theme.palette.primary.main} 
+                            fillOpacity={1} 
+                            fill="url(#colorUv)" 
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  </Box>
                 </Paper>
               </Grid>
             </Grid>
-          </>
-        )}
-      </Container>
+            
+            {/* Floating Quick Action Button */}
+            <Box sx={{ position: 'relative', height: 0 }}>
+              <QuickActions variant="fab" position="bottom-right" showLabels={true} />
+            </Box>
+          </Container>
+        </>
+      )}
     </DashboardLayout>
   );
 }
