@@ -69,9 +69,15 @@ interface NavItem {
 
 interface ImprovedNavigationProps {
   closeDrawer?: () => void;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
-export default function ImprovedNavigation({ closeDrawer }: ImprovedNavigationProps) {
+export default function ImprovedNavigation({ 
+  closeDrawer, 
+  collapsed = false,
+  onToggleCollapsed 
+}: ImprovedNavigationProps) {
   const theme = useTheme();
   const router = useRouter();
   const pathname = usePathname();
@@ -125,7 +131,7 @@ export default function ImprovedNavigation({ closeDrawer }: ImprovedNavigationPr
   const navItems: NavItem[] = [
     {
       title: 'Dashboard',
-      path: '/',
+      path: '/dashboard',
       icon: <DashboardIcon />,
     },
     {
@@ -157,11 +163,11 @@ export default function ImprovedNavigation({ closeDrawer }: ImprovedNavigationPr
           badge: 'Low',
           badgeColor: 'warning',
         },
-        {
-          title: 'Suppliers',
-          path: '/suppliers',
-          icon: <LocalShippingIcon />,
-        },
+        // {
+        //   title: 'Suppliers',
+        //   path: '/suppliers',
+        //   icon: <LocalShippingIcon />,
+        // },
       ],
     },
     {
@@ -171,25 +177,26 @@ export default function ImprovedNavigation({ closeDrawer }: ImprovedNavigationPr
       children: [
         {
           title: 'Customers',
-          path: '/parties/customers',
+          path: '/parties/',
           icon: <PersonIcon />,
         },
-        {
-          title: 'Vendors',
-          path: '/parties/vendors',
-          icon: <BusinessIcon />,
-        },
+        // {
+        //   title: 'Vendors',
+        //   path: '/parties/vendors',
+        //   icon: <BusinessIcon />,
+        // },
         {
           title: 'Staff',
           path: '/parties/staff',
           icon: <GroupIcon />,
-          roles: ['admin', 'manager'],
+          roles: ['admin'],
         },
       ],
     },
     {
       title: 'Purchases',
-      path: '/purchases',
+      path: '/purchases', 
+      roles: ['admin'],
       icon: <ShoppingCartIcon />,
     },
     {
@@ -258,39 +265,7 @@ export default function ImprovedNavigation({ closeDrawer }: ImprovedNavigationPr
       title: 'Settings',
       path: '/settings',
       icon: <SettingsIcon />,
-      children: [
-        {
-          title: 'General',
-          path: '/settings/general',
-          icon: <TuneIcon />,
-        },
-        {
-          title: 'Appearance',
-          path: '/settings/appearance',
-          icon: <PaletteIcon />,
-        },
-        {
-          title: 'Notifications',
-          path: '/settings/notifications',
-          icon: <NotificationsSettingsIcon />,
-        },
-        {
-          title: 'Users & Permissions',
-          path: '/settings/users',
-          icon: <AdminPanelSettingsIcon />,
-          roles: ['admin'],
-        },
-        {
-          title: 'Security',
-          path: '/settings/security',
-          icon: <SecurityIcon />,
-        },
-        {
-          title: 'Language',
-          path: '/settings/language',
-          icon: <LanguageIcon />,
-        },
-      ],
+      
     },
     {
       title: 'Help & Support',
@@ -304,7 +279,7 @@ export default function ImprovedNavigation({ closeDrawer }: ImprovedNavigationPr
     },
   ];
   
-  // Render a navigation item
+  // Render a navigation item with support for collapsed state
   const renderNavItem = (item: NavItem, level: number = 0) => {
     // Skip if not visible based on role
     if (!isVisible(item)) {
@@ -342,10 +317,11 @@ export default function ImprovedNavigation({ closeDrawer }: ImprovedNavigationPr
             }}
             sx={{
               minHeight: { xs: 44, sm: 48 },
-              px: 2.5,
+              px: collapsed ? 2 : 2.5,
               py: { xs: 0.75, sm: 1 },
               borderRadius: 1.5,
-              mx: 1,
+              mx: collapsed ? 0.5 : 1,
+              justifyContent: collapsed ? 'center' : 'flex-start',
               ...(active && !hasChildren && {
                 bgcolor: theme.palette.mode === 'dark' 
                   ? alpha(theme.palette.primary.main, 0.2) 
@@ -372,68 +348,72 @@ export default function ImprovedNavigation({ closeDrawer }: ImprovedNavigationPr
               }),
             }}
           >
-            <ListItemIcon
-              sx={{
-                minWidth: 0,
-                mr: 2,
-                justifyContent: 'center',
-                color: active || isChildActive 
-                  ? theme.palette.primary.main 
-                  : theme.palette.text.secondary,
-                fontSize: { xs: '1.25rem', sm: '1.5rem' },
-              }}
-            >
-              {item.icon}
-            </ListItemIcon>
-            <ListItemText 
-              primary={
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      fontWeight: active || isChildActive ? 600 : 400,
-                      fontSize: { xs: '0.875rem', sm: '0.875rem' }
-                    }}
-                  >
-                    {item.title}
-                  </Typography>
-                  {item.beta && (
-                    <Chip 
-                      label="Beta" 
-                      size="small" 
-                      color="secondary" 
+            <Tooltip title={collapsed ? item.title : ""} placement="right" arrow>
+              <ListItemIcon
+                sx={{
+                  minWidth: 0,
+                  mr: collapsed ? 0 : 2,
+                  justifyContent: 'center',
+                  color: active || isChildActive 
+                    ? theme.palette.primary.main 
+                    : theme.palette.text.secondary,
+                  fontSize: { xs: '1.25rem', sm: '1.5rem' },
+                }}
+              >
+                {item.icon}
+              </ListItemIcon>
+            </Tooltip>
+            {!collapsed && (
+              <ListItemText 
+                primary={
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Typography 
+                      variant="body2" 
                       sx={{ 
-                        ml: 1, 
-                        height: 20, 
-                        fontSize: '0.625rem',
-                        '& .MuiChip-label': {
-                          px: 0.75,
-                        }
-                      }} 
-                    />
-                  )}
-                </Box>
-              }
-              sx={{ 
-                opacity: 1,
-                '& .MuiTypography-root': {
-                  fontWeight: active || isChildActive ? 600 : 400,
-                },
-              }}
-            />
-            {item.badge && (
+                        fontWeight: active || isChildActive ? 600 : 400,
+                        fontSize: { xs: '0.875rem', sm: '0.875rem' }
+                      }}
+                    >
+                      {item.title}
+                    </Typography>
+                    {item.beta && (
+                      <Chip 
+                        label="Beta" 
+                        size="small" 
+                        color="secondary" 
+                        sx={{ 
+                          ml: 1, 
+                          height: 20, 
+                          fontSize: '0.625rem',
+                          '& .MuiChip-label': {
+                            px: 0.75,
+                          }
+                        }} 
+                      />
+                    )}
+                  </Box>
+                }
+                sx={{ 
+                  opacity: 1,
+                  '& .MuiTypography-root': {
+                    fontWeight: active || isChildActive ? 600 : 400,
+                  },
+                }}
+              />
+            )}
+            {!collapsed && item.badge && (
               <Badge 
                 badgeContent={item.badge} 
                 color={item.badgeColor || 'primary'} 
                 sx={{ ml: 1 }}
               />
             )}
-            {hasChildren && (expanded ? <ExpandLess /> : <ExpandMore />)}
+            {!collapsed && hasChildren && (expanded ? <ExpandLess /> : <ExpandMore />)}
           </ListItemButton>
         </ListItem>
         
-        {/* Render children if expanded */}
-        {hasChildren && (
+        {/* Render children if expanded and not collapsed */}
+        {hasChildren && !collapsed && (
           <Collapse in={expanded} timeout="auto" unmountOnExit>
             <List component="div" disablePadding>
               {item.children?.map(child => {

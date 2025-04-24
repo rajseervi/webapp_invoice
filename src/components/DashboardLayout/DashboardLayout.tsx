@@ -48,7 +48,6 @@ import {
   MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 import { useRouter, usePathname } from 'next/navigation';
-// Assuming ImprovedNavigation will be updated to handle 'collapsed' and 'onToggleCollapsed' props
 import ImprovedNavigation from './ImprovedNavigation'; 
 import { handleLogout } from '@/utils/authRedirects';
 
@@ -488,13 +487,9 @@ export default function ResponsiveDashboardLayout({ children }: DashboardLayoutP
         {/* Optional: Add a header or logo here */}
         <Box sx={{ overflow: 'auto', flexGrow: 1, mt: 1 }}>
           <ImprovedNavigation 
-            // *** IMPORTANT: ImprovedNavigation needs to be updated ***
-            // Pass the 'collapsed' state
             collapsed={!isMobileLayout && drawerCollapsed} 
-            // Pass the function to close drawer on mobile after navigation
             closeDrawer={closeDrawer} 
-            // Optional: Pass toggle function if ImprovedNavigation has a collapse button
-            // onToggleCollapsed={toggleDrawerCollapsed} 
+            onToggleCollapsed={toggleDrawerCollapsed} 
           />
         </Box>
          {/* Optional: Add a collapse button at the bottom for persistent drawer */}
