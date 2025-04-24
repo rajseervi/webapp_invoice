@@ -115,11 +115,6 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Set session persistence based on remember me option
-      if (!rememberMe) {
-        await setPersistence(auth, browserSessionPersistence);
-      }
-      
       // Use the login function from AuthContext
       const role = await login(formData.email, formData.password);
       
@@ -174,11 +169,6 @@ export default function Login() {
     }
     
     try {
-      // Set session persistence based on remember me option
-      if (!rememberMe) {
-        await setPersistence(auth, browserSessionPersistence);
-      }
-      
       // Use the loginWithGoogle function from the auth context we already have
       const role = await loginWithGoogle();
       

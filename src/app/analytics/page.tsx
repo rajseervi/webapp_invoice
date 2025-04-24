@@ -2,12 +2,12 @@
 import React from 'react';
 import { Box, Typography, Breadcrumbs, Link } from '@mui/material';
 import { Home as HomeIcon, Analytics as AnalyticsIcon } from '@mui/icons-material';
-import ResponsiveDashboardLayout from '@/components/DashboardLayout/ResponsiveDashboardLayout';
+import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
 import EngagementDashboard from '@/components/Dashboard/EngagementDashboard';
 
 export default function AnalyticsPage() {
   return (
-    <ResponsiveDashboardLayout>
+    <DashboardLayout>
       <Box sx={{ mb: 3 }}>
         <Breadcrumbs aria-label="breadcrumb">
           <Link
@@ -30,6 +30,6 @@ export default function AnalyticsPage() {
       </Box>
       
       <EngagementDashboard />
-    </ResponsiveDashboardLayout>
+    </DashboardLayout>
   );
 }

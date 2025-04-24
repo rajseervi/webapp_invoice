@@ -13,10 +13,12 @@ interface User {
 interface AuthContextType {
   currentUser: User | null;
   userRole: string | null;
+  userStatus: string | null;
   loading: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
+  login: (email: string, password: string) => Promise<string>;
+  loginWithGoogle: () => Promise<string>;
+  logout: (redirectUrl?: string) => Promise<string>;
   signup: (email: string, password: string, displayName: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
@@ -35,6 +37,7 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [userStatus, setUserStatus] = useState<string | null>('active');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,13 +59,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       };
       
       setCurrentUser(mockUser);
-      setUserRole('admin');
+      const role = 'admin';
+      setUserRole(role);
+      setUserStatus('active');
       
       // Save to localStorage for persistence
       localStorage.setItem('user', JSON.stringify(mockUser));
-      localStorage.setItem('userRole', 'admin');
+      localStorage.setItem('userRole', role);
+      localStorage.setItem('userStatus', 'active');
       
       setLoading(false);
+      return role;
     } catch (err) {
       setError('Failed to login. Please check your credentials.');
       setLoading(false);
@@ -70,8 +77,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
   
+  // Mock Google login function
+  const loginWithGoogle = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Mock user data
+      const mockUser: User = {
+        uid: '789012',
+        email: 'google-user@example.com',
+        displayName: 'Google User',
+        photoURL: 'https://via.placeholder.com/150',
+      };
+      
+      setCurrentUser(mockUser);
+      const role = 'admin';
+      setUserRole(role);
+      setUserStatus('active');
+      
+      // Save to localStorage for persistence
+      localStorage.setItem('user', JSON.stringify(mockUser));
+      localStorage.setItem('userRole', role);
+      localStorage.setItem('userStatus', 'active');
+      
+      setLoading(false);
+      return role;
+    } catch (err) {
+      setError('Failed to login with Google.');
+      setLoading(false);
+      throw err;
+    }
+  };
+  
   // Mock logout function
-  const logout = async () => {
+  const logout = async (redirectUrl?: string) => {
     try {
       setLoading(true);
       
@@ -80,12 +123,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       setCurrentUser(null);
       setUserRole(null);
+      setUserStatus(null);
       
       // Clear localStorage
       localStorage.removeItem('user');
       localStorage.removeItem('userRole');
+      localStorage.removeItem('userStatus');
+      localStorage.removeItem('loginAttempts');
+      localStorage.removeItem('loginLockout');
       
       setLoading(false);
+      return redirectUrl || '/login';
     } catch (err) {
       setError('Failed to logout.');
       setLoading(false);
@@ -198,6 +246,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       try {
         const savedUser = localStorage.getItem('user');
         const savedUserRole = localStorage.getItem('userRole');
+        const savedUserStatus = localStorage.getItem('userStatus');
         
         if (savedUser) {
           setCurrentUser(JSON.parse(savedUser));
@@ -205,6 +254,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         
         if (savedUserRole) {
           setUserRole(savedUserRole);
+        }
+        
+        if (savedUserStatus) {
+          setUserStatus(savedUserStatus);
         }
       } catch (err) {
         console.error('Failed to load user from localStorage:', err);
@@ -219,9 +272,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const value = {
     currentUser,
     userRole,
+    userStatus,
     loading,
     error,
     login,
+    loginWithGoogle,
     logout,
     signup,
     resetPassword,

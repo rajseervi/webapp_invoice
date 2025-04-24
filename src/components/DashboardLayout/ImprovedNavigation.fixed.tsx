@@ -48,7 +48,6 @@ import {
   Palette as PaletteIcon,
   Notifications as NotificationsSettingsIcon,
   Language as LanguageIcon,
-  TouchApp as TouchAppIcon,
   Info as InfoIcon,
 } from '@mui/icons-material';
 import { usePathname, useRouter } from 'next/navigation';
@@ -241,12 +240,9 @@ export default function ImprovedNavigation({ closeDrawer }: ImprovedNavigationPr
     {
       title: 'Analytics',
       path: '/analytics',
-      icon: <BarChartIcon />,
-    },
-    {
-      title: 'User Engagement',
-      path: '/engagement',
-      icon: <TouchAppIcon />,
+      icon: <TrendingUpIcon />,
+      beta: true,
+      roles: ['admin', 'manager'],
     },
     {
       divider: true,

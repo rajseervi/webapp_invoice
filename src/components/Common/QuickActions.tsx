@@ -261,11 +261,11 @@ export default function QuickActions({
         
         <Grid container spacing={2}>
           {visibleActions.map((action) => (
-            <Grid item xs={6} sm={3} key={action.id}>
+            <Grid item xs={4} sm={4} md={3} key={action.id}>
               <Paper
                 elevation={0}
                 sx={{
-                  p: 1.5,
+                  p: { xs: 1, sm: 1.5 },
                   borderRadius: 2,
                   cursor: 'pointer',
                   bgcolor: alpha(action.color, 0.1),
@@ -277,11 +277,16 @@ export default function QuickActions({
                     transform: 'translateY(-2px)',
                     boxShadow: theme.shadows[2],
                   },
+                  '&:active': {
+                    transform: 'translateY(0)',
+                    bgcolor: alpha(action.color, 0.2),
+                  },
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
                   height: '100%',
+                  minHeight: { xs: 80, sm: 100 },
                 }}
                 onClick={() => handleActionClick(action.path)}
               >
@@ -290,8 +295,8 @@ export default function QuickActions({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: 40,
-                    height: 40,
+                    width: { xs: 32, sm: 40 },
+                    height: { xs: 32, sm: 40 },
                     borderRadius: '50%',
                     bgcolor: action.color,
                     color: '#fff',
@@ -301,7 +306,20 @@ export default function QuickActions({
                   {action.icon}
                 </Box>
                 {showLabels && (
-                  <Typography variant="body2" fontWeight={500} align="center">
+                  <Typography 
+                    variant="body2" 
+                    fontWeight={500} 
+                    align="center"
+                    sx={{ 
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                      lineHeight: 1.2,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical'
+                    }}
+                  >
                     {action.label}
                   </Typography>
                 )}
