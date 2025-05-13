@@ -16,7 +16,8 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 
 // Initialize Firestore and Auth
 export const db = getFirestore(app);
-export const auth = getAuth(app); 
+export const auth = getAuth(app);
+//add
 
 // Enable offline persistence for Firestore with better error handling
 if (typeof window !== 'undefined') {
