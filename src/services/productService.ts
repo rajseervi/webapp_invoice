@@ -74,3 +74,31 @@ export const productService = {
     }
   }
 };
+
+
+// In your productService.ts file
+export const getProducts = async (): Promise<Product[]> => {
+  try {
+    console.log('Fetching products...');
+    const productsRef = collection(db, 'products');
+    const productsSnapshot = await getDocs(productsRef);
+    console.log('Products snapshot:', productsSnapshot);
+    
+    if (productsSnapshot.empty) {
+      console.log('No products found in database');
+      return []; // Return empty array instead of null
+    }
+    
+    const productsData = productsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Product[];
+    
+    console.log('Products data:', productsData);
+    return productsData;
+  } catch (error) {
+    console.error('Error in getProducts:', error);
+    // Return empty array instead of throwing or returning null
+    return [];
+  }
+};

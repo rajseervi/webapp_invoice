@@ -26,9 +26,7 @@ import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
 
 // Import dashboard data hook
 import { useDashboardData } from '@/app/dashboard/hooks/useDashboardData';
- 
-// Import quick actions component
-import QuickActions from '@/components/Common/QuickActions';
+  
 
 // Import enhanced visualization components
 import KPISummary from './components/KPISummary';
@@ -42,7 +40,9 @@ import {
   Refresh as RefreshIcon,
   Settings as SettingsIcon,
   Info as InfoIcon,
-  ArrowForward as ArrowForwardIcon
+  ArrowForward as ArrowForwardIcon,
+  ArrowUpward,
+  ArrowDownward
 } from '@mui/icons-material';
 
 // Import useCurrentUser hook
@@ -415,19 +415,446 @@ const DashboardContent = () => {
   }
 
 
-  // --- Role render functions (renderManagerDashboard, renderUserDashboard) ---
-  // ...
+  // --- Role render functions ---
+  
+  // Manager Dashboard
+  const renderManagerDashboard = () => (
+    <>
+      {/* Manager Welcome Section */}
+      <Paper
+        elevation={0}
+        sx={{
+          mb: 4,
+          p: { xs: 2, sm: 2.5, md: 4 },
+          borderRadius: 3,
+          background: theme => `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.05)} 0%, ${alpha(theme.palette.info.main, 0.1)} 100%)`,
+          border: theme => `1px solid ${alpha(theme.palette.info.main, 0.1)}`,
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} md={7}>
+            <Box sx={{ position: 'relative', zIndex: 1 }}>
+              <Typography 
+                variant="h3" 
+                component="h1" 
+                gutterBottom 
+                fontWeight={800}
+                sx={{ 
+                  fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2.5rem' },
+                  background: theme => `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  mb: 1
+                }}
+              >
+                Manager Dashboard
+              </Typography>
+              <Typography 
+                variant="h6" 
+                color="text.secondary" 
+                sx={{ 
+                  mb: 2, 
+                  fontWeight: 400,
+                  fontSize: { xs: '0.85rem', sm: '1rem', md: '1.25rem' }
+                }}
+              >
+                Monitor team performance, manage inventory, and oversee daily operations.
+              </Typography>
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: { xs: 'column', sm: 'row' },
+                gap: 2, 
+                mt: 3,
+                width: { xs: '100%', sm: 'auto' }
+              }}>
+                <Button 
+                  variant="contained" 
+                  color="info" 
+                  size={isMobile ? "medium" : "large"}
+                  fullWidth={isMobile}
+                  onClick={() => router.push('/inventory')}
+                  sx={{ 
+                    borderRadius: 2,
+                    px: { xs: 2, md: 3 },
+                    py: { xs: 1, sm: 1.5 },
+                    boxShadow: theme => `0 4px 14px ${alpha(theme.palette.info.main, 0.4)}`
+                  }}
+                >
+                  Manage Inventory
+                </Button>
+                <Button 
+                  variant="outlined" 
+                  color="info"
+                  size={isMobile ? "medium" : "large"}
+                  fullWidth={isMobile}
+                  onClick={() => router.push('/orders')}
+                  sx={{ 
+                    borderRadius: 2, 
+                    px: { xs: 2, md: 3 },
+                    py: { xs: 1, sm: 1.5 }
+                  }}
+                >
+                  View Orders
+                </Button>
+              </Box>
+            </Box>
+          </Grid>
+        </Grid>
+      </Paper>
+      
+      {/* Manager-specific KPIs */}
+      <Typography variant="h5" component="h2" sx={{ mb: 3, fontWeight: 600 }}>
+        Team Performance
+      </Typography>
+      
+      <Grid container spacing={isMobile ? 2 : 3} sx={{ mb: 4 }}>
+        {stats.slice(0, 4).map((stat, index) => (
+          <Grid item xs={12} sm={6} md={3} key={index}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: { xs: 2, md: 3 },
+                height: '100%',
+                borderRadius: 2,
+                border: '1px solid',
+                borderColor: theme => alpha(theme.palette.divider, 0.1),
+                background: theme => stat.color ? alpha(stat.color, 0.05) : 'transparent',
+                transition: 'transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out',
+                '&:hover': {
+                  transform: 'translateY(-5px)',
+                  boxShadow: '0 10px 20px rgba(0,0,0,0.1)'
+                }
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 40,
+                    height: 40,
+                    borderRadius: '50%',
+                    backgroundColor: theme => stat.color ? alpha(stat.color, 0.12) : 'transparent',
+                    color: stat.color,
+                    mr: 1.5
+                  }}
+                >
+                  {stat.icon}
+                </Box>
+                <Typography variant="h6" component="h3" fontWeight={600}>
+                  {stat.title}
+                </Typography>
+              </Box>
+              <Typography variant="h4" component="p" fontWeight={700} sx={{ mb: 1 }}>
+                {stat.value}
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                {stat.trend > 0 ? (
+                  <Typography variant="body2" color="success.main" sx={{ display: 'flex', alignItems: 'center' }}>
+                    <ArrowUpward fontSize="small" sx={{ mr: 0.5 }} />
+                    {stat.trend}% increase
+                  </Typography>
+                ) : (
+                  <Typography variant="body2" color="error.main" sx={{ display: 'flex', alignItems: 'center' }}>
+                    <ArrowDownward fontSize="small" sx={{ mr: 0.5 }} />
+                    {Math.abs(stat.trend)}% decrease
+                  </Typography>
+                )}
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                  vs last month
+                </Typography>
+              </Box>
+            </Paper>
+          </Grid>
+        ))}
+      </Grid>
+      
+      {/* Inventory Status */}
+      <Typography variant="h5" component="h2" sx={{ mb: 3, fontWeight: 600 }}>
+        Inventory Status
+      </Typography>
+      
+      <Paper 
+        sx={{ 
+          p: 3, 
+          mb: 4, 
+          borderRadius: 2,
+          boxShadow: theme => `0 2px 10px ${alpha(theme.palette.info.main, 0.08)}`,
+        }}
+      >
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Low Stock Items
+          </Typography>
+          <Divider />
+        </Box>
+        
+        {lowStockItems && lowStockItems.length > 0 ? (
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Product</TableCell>
+                  <TableCell align="right">SKU</TableCell>
+                  <TableCell align="right">Current Stock</TableCell>
+                  <TableCell align="right">Reorder Level</TableCell>
+                  <TableCell align="right">Action</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {lowStockItems.map((item, index) => (
+                  <TableRow key={index} hover>
+                    <TableCell>{item.name}</TableCell>
+                    <TableCell align="right">{item.sku}</TableCell>
+                    <TableCell align="right">
+                      <Chip 
+                        label={item.quantity} 
+                        color={item.quantity <= 5 ? "error" : "warning"} 
+                        size="small" 
+                      />
+                    </TableCell>
+                    <TableCell align="right">{item.reorderLevel}</TableCell>
+                    <TableCell align="right">
+                      <Button 
+                        variant="outlined" 
+                        size="small"
+                        onClick={() => router.push(`/inventory/${item.id}`)}
+                      >
+                        Restock
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        ) : (
+          <Box sx={{ textAlign: 'center', py: 3 }}>
+            <Typography color="text.secondary">
+              No low stock items at the moment
+            </Typography>
+          </Box>
+        )}
+      </Paper>
+    </>
+  );
+  
+  // Regular User Dashboard
+  const renderUserDashboard = () => (
+    <>
+      {/* User Welcome Section */}
+      <Paper
+        elevation={0}
+        sx={{
+          mb: 4,
+          p: { xs: 2, sm: 2.5, md: 4 },
+          borderRadius: 3,
+          background: theme => `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.05)} 0%, ${alpha(theme.palette.success.main, 0.1)} 100%)`,
+          border: theme => `1px solid ${alpha(theme.palette.success.main, 0.1)}`,
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} md={7}>
+            <Box sx={{ position: 'relative', zIndex: 1 }}>
+              <Typography 
+                variant="h3" 
+                component="h1" 
+                gutterBottom 
+                fontWeight={800}
+                sx={{ 
+                  fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2.5rem' },
+                  background: theme => `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  mb: 1
+                }}
+              >
+                User Dashboard
+              </Typography>
+              <Typography 
+                variant="h6" 
+                color="text.secondary" 
+                sx={{ 
+                  mb: 2, 
+                  fontWeight: 400,
+                  fontSize: { xs: '0.85rem', sm: '1rem', md: '1.25rem' }
+                }}
+              >
+                Track your daily tasks, manage orders, and view your performance.
+              </Typography>
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: { xs: 'column', sm: 'row' },
+                gap: 2, 
+                mt: 3,
+                width: { xs: '100%', sm: 'auto' }
+              }}>
+                <Button 
+                  variant="contained" 
+                  color="success" 
+                  size={isMobile ? "medium" : "large"}
+                  fullWidth={isMobile}
+                  onClick={() => router.push('/orders/new')}
+                  sx={{ 
+                    borderRadius: 2,
+                    px: { xs: 2, md: 3 },
+                    py: { xs: 1, sm: 1.5 },
+                    boxShadow: theme => `0 4px 14px ${alpha(theme.palette.success.main, 0.4)}`
+                  }}
+                >
+                  Create New Order
+                </Button>
+                <Button 
+                  variant="outlined" 
+                  color="success"
+                  size={isMobile ? "medium" : "large"}
+                  fullWidth={isMobile}
+                  onClick={() => router.push('/orders')}
+                  sx={{ 
+                    borderRadius: 2, 
+                    px: { xs: 2, md: 3 },
+                    py: { xs: 1, sm: 1.5 }
+                  }}
+                >
+                  View Orders
+                </Button>
+              </Box>
+            </Box>
+          </Grid>
+        </Grid>
+      </Paper>
+      
+      {/* User-specific KPIs - Simplified for regular users */}
+      <Typography variant="h5" component="h2" sx={{ mb: 3, fontWeight: 600 }}>
+        Your Activity
+      </Typography>
+      
+      <Grid container spacing={isMobile ? 2 : 3} sx={{ mb: 4 }}>
+        {stats.slice(0, 2).map((stat, index) => (
+          <Grid item xs={12} sm={6} key={index}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: { xs: 2, md: 3 },
+                height: '100%',
+                borderRadius: 2,
+                border: '1px solid',
+                borderColor: theme => alpha(theme.palette.divider, 0.1),
+                background: theme => stat.color ? alpha(stat.color, 0.05) : 'transparent',
+                transition: 'transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out',
+                '&:hover': {
+                  transform: 'translateY(-5px)',
+                  boxShadow: '0 10px 20px rgba(0,0,0,0.1)'
+                }
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 40,
+                    height: 40,
+                    borderRadius: '50%',
+                    backgroundColor: theme => stat.color ? alpha(stat.color, 0.12) : 'transparent',
+                    color: stat.color,
+                    mr: 1.5
+                  }}
+                >
+                  {stat.icon}
+                </Box>
+                <Typography variant="h6" component="h3" fontWeight={600}>
+                  {stat.title}
+                </Typography>
+              </Box>
+              <Typography variant="h4" component="p" fontWeight={700} sx={{ mb: 1 }}>
+                {stat.value}
+              </Typography>
+            </Paper>
+          </Grid>
+        ))}
+      </Grid>
+      
+      {/* Recent Orders - Limited view for users */}
+      <Typography variant="h5" component="h2" sx={{ mb: 3, fontWeight: 600 }}>
+        Recent Orders
+      </Typography>
+      
+      <Paper 
+        sx={{ 
+          p: 3, 
+          mb: 4, 
+          borderRadius: 2,
+          boxShadow: theme => `0 2px 10px ${alpha(theme.palette.success.main, 0.08)}`,
+        }}
+      >
+        {recentInvoices && recentInvoices.length > 0 ? (
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Order ID</TableCell>
+                  <TableCell>Customer</TableCell>
+                  <TableCell align="right">Amount</TableCell>
+                  <TableCell align="right">Status</TableCell>
+                  <TableCell align="right">Action</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {recentInvoices.slice(0, 5).map((invoice, index) => (
+                  <TableRow key={index} hover>
+                    <TableCell>{invoice.id}</TableCell>
+                    <TableCell>{invoice.customer}</TableCell>
+                    <TableCell align="right">{formatCurrency(invoice.amount)}</TableCell>
+                    <TableCell align="right">
+                      <Chip 
+                        label={invoice.status} 
+                        color={
+                          invoice.status === 'Paid' ? 'success' :
+                          invoice.status === 'Pending' ? 'warning' : 'error'
+                        } 
+                        size="small" 
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Button 
+                        variant="outlined" 
+                        size="small"
+                        onClick={() => router.push(`/orders/${invoice.id}`)}
+                      >
+                        View
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        ) : (
+          <Box sx={{ textAlign: 'center', py: 3 }}>
+            <Typography color="text.secondary">
+              No recent orders
+            </Typography>
+          </Box>
+        )}
+      </Paper>
+    </>
+  );
 
   // --- Main return logic based on role ---
   if (role === 'admin') {
     return renderAdminDashboard();
   } else if (role === 'manager') {
-    // return renderManagerDashboard(); // Assuming you have this
+    return renderManagerDashboard();
   } else {
-    // return renderUserDashboard(); // Assuming you have this
+    return renderUserDashboard();
   }
-
-  return <Typography>Dashboard content based on role.</Typography>; // Fallback
 };
 
 // --- Main Page Component ---
