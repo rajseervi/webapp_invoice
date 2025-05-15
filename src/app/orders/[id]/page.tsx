@@ -61,7 +61,8 @@ type OrderDetailsPageProps = {
 };
 
 export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
-  const { id } = params;
+  const resolvedParams = React.use(params);
+  const id = resolvedParams.id;
   const router = useRouter();
   
   // State for order data

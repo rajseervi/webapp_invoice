@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
 import {
   Container,
@@ -30,7 +31,12 @@ import {
   Breadcrumbs,
   Link as MuiLink,
   Card,
-  CardContent
+  CardContent,
+  alpha,
+  Stepper,
+  Step,
+  StepLabel,
+  Chip
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -49,13 +55,13 @@ import {
   Discount as DiscountIcon,
   ArrowForward as ArrowForwardIcon
 } from '@mui/icons-material';
-import { alpha, Stepper, Step, StepLabel, Chip } from '@mui/material';
 import { orderService } from '@/services/orderService';
 import { productService } from '@/services/productService';
 import { partyService } from '@/services/partyService';
-import { Order, OrderFormData, OrderItem, OrderStatus, PaymentStatus } from '@/types/order';
-import { Product } from '@/types/inventory';
-import { Party } from '@/types/party';
+import type { Order, OrderFormData, OrderItem } from '@/types/order';
+import { OrderStatus, PaymentStatus } from '@/types/order';
+import type { Product } from '@/types/inventory';
+import type { Party } from '@/types/party';
 import { formatCurrency } from '@/utils/numberUtils';
 
 export default function NewOrderPage() {
@@ -373,6 +379,50 @@ export default function NewOrderPage() {
     return Object.keys(errors).length === 0;
   };
 
+  // Handle shipping cost change
+  const handleShippingChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(event.target.value);
+    setFormData(prev => ({
+      ...prev,
+      shipping: isNaN(value) ? 0 : value
+    }));
+  };
+
+  // Handle tax amount change
+  const handleTaxChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(event.target.value);
+    setFormData(prev => ({
+      ...prev,
+      tax: isNaN(value) ? 0 : value
+    }));
+  };
+
+  // Handle notes change
+  const handleNotesChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setFormData(prev => ({
+      ...prev,
+      notes: event.target.value
+    }));
+  };
+
+  // Handle updating an item in the order
+  const handleUpdateItem = (index: number, field: string, value: any) => {
+    const updatedItems = [...formData.items];
+    updatedItems[index] = { ...updatedItems[index], [field]: value };
+    
+    // Recalculate total if price or quantity changes
+    if (field === 'price' || field === 'quantity') {
+      const quantity = field === 'quantity' ? value : updatedItems[index].quantity;
+      const price = field === 'price' ? value : updatedItems[index].price;
+      updatedItems[index].total = quantity * price;
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      items: updatedItems
+    }));
+  };
+
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -455,6 +505,7 @@ export default function NewOrderPage() {
               <MuiLink
                 underline="hover"
                 color="inherit"
+                component={Link}
                 href="/dashboard"
                 sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
               >
@@ -464,6 +515,7 @@ export default function NewOrderPage() {
               <MuiLink
                 underline="hover"
                 color="inherit"
+                component={Link}
                 href="/orders"
                 sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
               >
@@ -621,29 +673,32 @@ export default function NewOrderPage() {
                       }}
                     />
                   )}
-                  renderOption={(props, option) => (
-                    <li {...props}>
-                      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                        <Typography variant="body1" fontWeight="medium">
-                          {option.name}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {option.email || 'No email'} • {option.phone || 'No phone'}
-                        </Typography>
-                        {(option.discountPercentage > 0 || option.firstOrderDiscountPercentage > 0) && (
-                          <Chip 
-                            label={option.orderCount === 0 && option.firstOrderDiscountPercentage > 0 
-                              ? `First Order: ${option.firstOrderDiscountPercentage}% off` 
-                              : `Discount: ${option.discountPercentage}% off`}
-                            size="small"
-                            color="success"
-                            variant="outlined"
-                            sx={{ mt: 1, alignSelf: 'flex-start' }}
-                          />
-                        )}
-                      </Box>
-                    </li>
-                  )}
+                  renderOption={(props, option) => {
+                    const { key, ...otherProps } = props;
+                    return (
+                      <li key={key} {...otherProps}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                          <Typography variant="body1" fontWeight="medium">
+                            {option.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {option.email || 'No email'} • {option.phone || 'No phone'}
+                          </Typography>
+                          {(option.discountPercentage > 0 || option.firstOrderDiscountPercentage > 0) && (
+                            <Chip 
+                              label={option.orderCount === 0 && option.firstOrderDiscountPercentage > 0 
+                                ? `First Order: ${option.firstOrderDiscountPercentage}% off` 
+                                : `Discount: ${option.discountPercentage}% off`}
+                              size="small"
+                              color="success"
+                              variant="outlined"
+                              sx={{ mt: 1, alignSelf: 'flex-start' }}
+                            />
+                          )}
+                        </Box>
+                      </li>
+                    );
+                  }}
                 />
                 
                 {selectedParty && (

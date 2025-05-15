@@ -124,42 +124,48 @@ export default function OrderEditPage({ params }: OrderEditPageProps) {
 
   useEffect(() => {
     const fetchProducts = async () => {
-      try {
-        setProductsLoading(true);
-        setProductsError(null);
-        
-        // Add null check for productService
-        if (!productService || typeof productService.getProducts !== 'function') {
-          throw new Error('Product service is not properly initialized');
-        }
-        
-        const productsData = await productService.getProducts();
-        
-        // If no data is received, set an empty array instead of throwing an error
-        if (!productsData) {
-          console.warn('No products data received, using empty array instead');
-          setProducts([]);
-          return;
-        }
-        
-        // Add validation to ensure productsData is an array
-        if (!Array.isArray(productsData)) {
-          console.error('Invalid products data format:', productsData);
-          setProductsError('Invalid product data received. Please try again.');
-          setProducts([]);
-          return;
-        }
-        
-        setProducts(productsData);
-      } catch (err) {
-        console.error('Error fetching products:', err);
-        setProductsError(err instanceof Error ? err.message : 'Failed to load products. Please try again.');
-        // Set empty products array to prevent UI issues
-        setProducts([]);
-      } finally {
-        setProductsLoading(false);
-      }
-    };
+  try {
+    setProductsLoading(true);
+    setProductsError(null);
+    
+    if (!productService) {
+      throw new Error('Product service not initialized');
+    }
+    
+    const productsData = await productService.getProducts();
+    
+    // More flexible data validation
+    if (!productsData) {
+      throw new Error('No products data received');
+    }
+    
+    // Convert to array if single item
+    const productsArray = Array.isArray(productsData) ? productsData : [productsData];
+    
+    // Validate each product has required fields
+    const validProducts = productsArray.filter(p => {
+      return p && typeof p === 'object' && 
+             'id' in p && 
+             'name' in p && 
+             'status' in p;
+    });
+    
+    const activeProducts = validProducts
+      .filter(p => p.status === 'active')
+      .sort((a, b) => a.name.localeCompare(b.name));
+    
+    if (activeProducts.length === 0) {
+      setProductsError('No active products available');
+    }
+    
+    setProducts(activeProducts);
+  } catch (err) {
+    console.error('Error fetching products:', err);
+    setProductsError(err instanceof Error ? err.message : 'Failed to load products');
+  } finally {
+    setProductsLoading(false);
+  }
+};
     
     fetchProducts();
   }, []);
@@ -745,231 +751,99 @@ export default function OrderEditPage({ params }: OrderEditPageProps) {
                   </Grid>
                 </Grid>
               </Paper>
-              <Paper 
-                sx={{ 
-                  p: 3, 
-                  mb: 3, 
-                  borderRadius: 2,
-                  boxShadow: theme => `0 2px 10px ${alpha(theme.palette.primary.main, 0.08)}`,
-                }}
-              >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <InventoryIcon 
-                      sx={{ 
-                        mr: 1.5, 
+              {formData.items.length > 0 && (
+                <Paper
+                  sx={{
+                    p: 3,
+                    mb: 3,
+                    borderRadius: 2,
+                    boxShadow: theme => `0 2px 10px ${alpha(theme.palette.primary.main, 0.08)}`
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <InventoryIcon
+                      sx={{
+                        mr: 1.5,
                         color: 'primary.main',
                         fontSize: 28
-                      }} 
+                      }}
                     />
-                    <Typography variant="h6" fontWeight="bold">
-                      Order Items
-                    </Typography>
-                    {modifiedFields.has('items') && (
-                      <Chip 
-                        label="Modified" 
-                        color="primary" 
-                        size="small" 
-                        sx={{ ml: 1 }}
-                      />
-                    )}
+                    <Typography variant="h6" fontWeight="bold">Order Items</Typography>
                   </Box>
-                  <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={handleAddItem}
-                    size="small"
-                    sx={{ borderRadius: 2 }}
-                  >
-                    Add Item
-                  </Button>
-                </Box>
-                <Divider sx={{ mb: 3 }} />
-                
-                <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                  <Table>
-                    <TableHead sx={{ bgcolor: theme => alpha(theme.palette.primary.main, 0.05) }}>
-                      <TableRow>
-                        <TableCell sx={{ fontWeight: 'bold' }}>Product</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>Quantity</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>Price</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>Total</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>Actions</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {productsError && (
+                  <Divider sx={{ mb: 3 }} />
+                  
+                  <TableContainer>
+                    <Table>
+                      <TableHead>
                         <TableRow>
-                          <TableCell colSpan={5} align="center">
-                            <Alert severity="error" sx={{ m: 2 }}>
-                              {productsError}
-                            </Alert>
-                          </TableCell>
+                          <TableCell>Product</TableCell>
+                          <TableCell align="right">Price</TableCell>
+                          <TableCell align="right">Quantity</TableCell>
+                          <TableCell align="right">Total</TableCell>
+                          <TableCell align="right">Actions</TableCell>
                         </TableRow>
-                      )}
-                      
-                      {productsLoading && (
-                        <TableRow>
-                          <TableCell colSpan={5} align="center">
-                            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 3 }}>
-                              <CircularProgress size={24} sx={{ mr: 2 }} />
-                              <Typography variant="body2">
-                                Loading products...
-                              </Typography>
-                            </Box>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                      
-                      {formData.items.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                              <InventoryIcon sx={{ fontSize: 40, color: 'text.secondary', opacity: 0.3 }} />
-                              <Typography variant="body1" color="text.secondary">
-                                No items in this order
-                              </Typography>
-                              <Button 
-                                variant="outlined" 
-                                size="small" 
-                                startIcon={<AddIcon />}
-                                onClick={handleAddItem}
-                                sx={{ mt: 1 }}
-                              >
-                                Add First Item
-                              </Button>
-                            </Box>
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        formData.items.map((item, index) => (
-                          <TableRow key={index} hover>
+                      </TableHead>
+                      <TableBody>
+                        {formData.items.map((item, index) => (
+                          <TableRow key={index}>
                             <TableCell>
-                              <Autocomplete
-                                options={products}
-                                getOptionLabel={(option) => `${option.name} (${option.sku})`}
-                                value={products.find(p => p.id === item.productId) || null}
-                                onChange={(_, newValue) => {
-                                  if (newValue) {
-                                    handleItemChange(index, 'productId', newValue.id);
-                                    handleItemChange(index, 'productName', newValue.name);
-                                    handleItemChange(index, 'price', newValue.price);
-                                  }
-                                }}
-                                renderInput={(params) => (
-                                  <TextField
-                                    {...params}
-                                    label="Select Product"
-                                    variant="outlined"
-                                    size="small"
-                                    InputProps={{
-                                      ...params.InputProps,
-                                      startAdornment: (
-                                        <>
-                                          <SearchIcon fontSize="small" sx={{ mr: 1, color: 'primary.main' }} />
-                                          {params.InputProps.startAdornment}
-                                        </>
-                                      ),
-                                      sx: { borderRadius: 1.5 }
-                                    }}
-                                  />
-                                )}
-                                renderOption={(props, option) => (
-                                  <li {...props}>
-                                    <Box sx={{ width: '100%' }}>
-                                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <Typography variant="body1" fontWeight="medium">{option.name}</Typography>
-                                        <Chip 
-                                          label={option.quantity > 10 ? 'In Stock' : (option.quantity > 0 ? 'Low Stock' : 'Out of Stock')}
-                                          size="small"
-                                          color={option.quantity > 10 ? 'success' : (option.quantity > 0 ? 'warning' : 'error')}
-                                          sx={{ ml: 1 }}
-                                        />
-                                      </Box>
-                                      <Typography variant="body2" color="text.secondary">
-                                        SKU: {option.sku} | Price: {formatCurrency(option.price)}
-                                      </Typography>
-                                    </Box>
-                                  </li>
-                                )}
-                                filterOptions={(options, { inputValue }) =>
-                                  options.filter(option =>
-                                    option.name.toLowerCase().includes(inputValue.toLowerCase()) ||
-                                    option.sku.toLowerCase().includes(inputValue.toLowerCase())
-                                  )
-                                }
-                                disabled={productsLoading}
-                              />
+                              <Box>
+                                <Typography fontWeight="medium">{item.productName}</Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  SKU: {products.find(p => p.id === item.productId)?.sku || 'N/A'}
+                                </Typography>
+                              </Box>
                             </TableCell>
                             <TableCell align="right">
+                              <Typography>{formatCurrency(item.price)}</Typography>
+                            </TableCell>
+                            <TableCell align="right" sx={{ minWidth: 120 }}>
                               <TextField
                                 type="number"
                                 value={item.quantity}
-                                onChange={(e) => {
-                                  const value = Math.max(1, Number(e.target.value));
-                                  handleItemChange(index, 'quantity', value);
-                                }}
-                                inputProps={{ 
-                                  min: 1,
-                                  step: 1
-                                }}
+                                onChange={(e) => handleItemChange(index, 'quantity', parseInt(e.target.value, 10))}
                                 variant="outlined"
                                 size="small"
-                                error={item.quantity <= 0}
-                                helperText={item.quantity <= 0 ? 'Min: 1' : ''}
-                                sx={{ width: '80px' }}
-                                InputProps={{ sx: { borderRadius: 1.5 } }}
-                              />
-                            </TableCell>
-                            <TableCell align="right">
-                              <TextField
-                                type="number"
-                                value={item.price}
-                                onChange={(e) => {
-                                  const value = Math.max(0, Number(e.target.value));
-                                  handleItemChange(index, 'price', value);
-                                }}
-                                inputProps={{ 
-                                  min: 0,
-                                  step: 0.01
-                                }}
-                                variant="outlined"
-                                size="small"
-                                sx={{ width: '100px' }}
                                 InputProps={{
-                                  startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                                  inputProps: { min: 1 },
                                   sx: { borderRadius: 1.5 }
                                 }}
                               />
                             </TableCell>
                             <TableCell align="right">
-                              <Typography variant="body1" fontWeight="medium">
+                              <Typography fontWeight="medium">
                                 {formatCurrency(item.total)}
                               </Typography>
                             </TableCell>
                             <TableCell align="right">
                               <Tooltip title="Remove Item">
                                 <IconButton
-                                  onClick={() => handleDeleteItem(index)}
-                                  color="error"
                                   size="small"
-                                  sx={{ 
-                                    '&:hover': { 
-                                      bgcolor: theme => alpha(theme.palette.error.main, 0.1) 
-                                    } 
-                                  }}
+                                  color="error"
+                                  onClick={() => handleDeleteItem(index)}
                                 >
                                   <DeleteIcon />
                                 </IconButton>
                               </Tooltip>
                             </TableCell>
                           </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Paper>
+                        ))}
+                        <TableRow>
+                          <TableCell colSpan={3} align="right">
+                            <Typography fontWeight="bold">Total:</Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography fontWeight="bold">
+                              {formatCurrency(formData.total)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell />
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Paper>
+              )}
               
               {/* Additional Information */}
               <Paper 

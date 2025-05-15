@@ -1,6 +1,6 @@
 "use client"
 import React, { useState, useEffect, useMemo } from 'react';
-import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
+import ResponsiveDashboardLayout from '@/components/DashboardLayout/DashboardLayout';
 import PageHeader from '@/components/PageHeader/PageHeader';
 import ExcelImportExport from '@/components/products/ExcelImportExport';
 import ExportAllProducts from '@/components/products/ExportAllProducts';
@@ -1468,7 +1468,7 @@ export default function ProductsPage() {
 
 
   return (
-    <DashboardLayout>
+    <ResponsiveDashboardLayout>
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
           <Typography variant="h5">Products</Typography>
@@ -2706,6 +2706,6 @@ export default function ProductsPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </DashboardLayout>
+    </ResponsiveDashboardLayout>
   );
 };
