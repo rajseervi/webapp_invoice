@@ -27,7 +27,16 @@ import {
   ArrowForward as ArrowForwardIcon
 } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit,
+  getCountFromServer, // Import getCountFromServer
+  Timestamp // Import Timestamp for date queries
+} from 'firebase/firestore';
 import { db } from '@/firebase/config';
 
 // Define interfaces
@@ -61,6 +70,12 @@ interface PendingUser {
   createdAt: string;
 }
 
+interface SalesOverviewStats {
+  totalSalesToday: number;
+  totalOrdersToday: number;
+  // Potentially add more: totalSalesThisMonth, totalOrdersThisMonth etc.
+}
+
 export default function OptimizedAdminDashboard() {
   const theme = useTheme();
   const router = useRouter();
@@ -71,6 +86,7 @@ export default function OptimizedAdminDashboard() {
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+  const [salesOverview, setSalesOverview] = useState<SalesOverviewStats | null>(null);
 
   // Fetch dashboard data
   useEffect(() => {
@@ -78,41 +94,93 @@ export default function OptimizedAdminDashboard() {
       try {
         setLoading(true);
         
-        // Fetch system stats
-        const mockStats: SystemStat[] = [
-          { 
-            name: 'Total Users', 
-            value: 24, 
-            change: 12, 
-            icon: <PeopleIcon />, 
-            color: theme.palette.primary.main 
+        // --- Fetch System Stats (Real Data) ---
+        const usersCollection = collection(db, 'users');
+        const productsCollection = collection(db, 'products');
+        const invoicesCollection = collection(db, 'invoices');
+
+        const usersSnapshot = await getCountFromServer(usersCollection);
+        const productsSnapshot = await getCountFromServer(productsCollection);
+        const invoicesSnapshot = await getCountFromServer(invoicesCollection);
+        
+        // Fetch low stock items (existing logic, can be combined)
+        const productsRef = collection(db, 'products');
+        const lowStockQuery = query(
+          productsRef,
+          where('stock', '<', 10),
+          orderBy('stock', 'asc'),
+          limit(5)
+        );
+        const lowStockSnapshot = await getDocs(lowStockQuery);
+        const lowStockData = lowStockSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.name,
+            stock: data.stock,
+            category: data.category
+          };
+        });
+        setLowStockItems(lowStockData);
+
+        const fetchedStats: SystemStat[] = [
+          {
+            name: 'Total Users',
+            value: usersSnapshot.data().count,
+            change: 0, // Calculate change based on previous period if needed
+            icon: <PeopleIcon />,
+            color: theme.palette.primary.main
           },
-          { 
-            name: 'Products', 
-            value: 156, 
-            change: 8, 
-            icon: <InventoryIcon />, 
-            color: theme.palette.success.main 
+          {
+            name: 'Products',
+            value: productsSnapshot.data().count,
+            change: 0,
+            icon: <InventoryIcon />,
+            color: theme.palette.success.main
           },
-          { 
-            name: 'Invoices', 
-            value: 89, 
-            change: 23, 
-            icon: <ReceiptIcon />, 
-            color: theme.palette.info.main 
+          {
+            name: 'Invoices',
+            value: invoicesSnapshot.data().count,
+            change: 0,
+            icon: <ReceiptIcon />,
+            color: theme.palette.info.main
           },
-          { 
-            name: 'Low Stock Items', 
-            value: 12, 
-            change: -5, 
-            icon: <WarningIcon />, 
-            color: theme.palette.warning.main 
+          {
+            name: 'Low Stock Items',
+            value: lowStockData.length, // Or a specific count if criteria is different
+            change: 0, 
+            icon: <WarningIcon />,
+            color: theme.palette.warning.main
           }
         ];
-        setStats(mockStats);
+        setStats(fetchedStats);
         
-        // Fetch recent activities
-        // In a real app, you would fetch this from Firestore
+        // --- Fetch Sales Overview --- 
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Start of today
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1); // Start of tomorrow
+
+        const todayTimestamp = Timestamp.fromDate(today);
+        const tomorrowTimestamp = Timestamp.fromDate(tomorrow);
+
+        // Assuming 'invoices' collection has 'createdAt' (Timestamp) and 'totalAmount'
+        const salesQuery = query(
+          invoicesCollection, 
+          where('createdAt', '>=', todayTimestamp),
+          where('createdAt', '<', tomorrowTimestamp)
+        );
+        const salesSnapshot = await getDocs(salesQuery);
+        let totalSalesToday = 0;
+        salesSnapshot.forEach(doc => {
+          totalSalesToday += doc.data().totalAmount || 0;
+        });
+        setSalesOverview({
+          totalSalesToday: totalSalesToday,
+          totalOrdersToday: salesSnapshot.size
+        });
+
+        // --- Fetch recent activities (Mock for now) ---
         const mockActivities: RecentActivity[] = [
           {
             id: '1',
@@ -145,40 +213,7 @@ export default function OptimizedAdminDashboard() {
         ];
         setRecentActivities(mockActivities);
         
-        // Fetch low stock items
-        try {
-          const productsRef = collection(db, 'products');
-          const lowStockQuery = query(
-            productsRef,
-            where('stock', '<', 10),
-            orderBy('stock', 'asc'),
-            limit(5)
-          );
-          
-          const lowStockSnapshot = await getDocs(lowStockQuery);
-          const lowStockData = lowStockSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              name: data.name,
-              stock: data.stock,
-              category: data.category
-            };
-          });
-          setLowStockItems(lowStockData);
-        } catch (err) {
-          console.error('Error fetching low stock items:', err);
-          // Use mock data if Firestore query fails
-          setLowStockItems([
-            { id: '1', name: 'Laptop XPS 15', stock: 3, category: 'Electronics' },
-            { id: '2', name: 'Wireless Mouse', stock: 5, category: 'Accessories' },
-            { id: '3', name: 'USB-C Cable', stock: 7, category: 'Accessories' },
-            { id: '4', name: 'Bluetooth Speaker', stock: 2, category: 'Electronics' },
-            { id: '5', name: 'Mechanical Keyboard', stock: 4, category: 'Accessories' }
-          ]);
-        }
-        
-        // Fetch pending users
+        // --- Fetch pending users (Existing Logic) ---
         try {
           const usersRef = collection(db, 'users');
           const pendingUsersQuery = query(
@@ -201,7 +236,6 @@ export default function OptimizedAdminDashboard() {
           setPendingUsers(pendingUsersData);
         } catch (err) {
           console.error('Error fetching pending users:', err);
-          // Use mock data if Firestore query fails
           setPendingUsers([
             { id: '1', name: 'John Doe', email: 'john@example.com', createdAt: new Date(Date.now() - 86400000).toISOString() },
             { id: '2', name: 'Jane Smith', email: 'jane@example.com', createdAt: new Date(Date.now() - 172800000).toISOString() }
@@ -218,7 +252,7 @@ export default function OptimizedAdminDashboard() {
     };
     
     fetchDashboardData();
-  }, [theme.palette]);
+  }, [theme.palette]); // Add dependencies if any are used from outside and can change
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -226,7 +260,7 @@ export default function OptimizedAdminDashboard() {
     return date.toLocaleString();
   };
 
-  // Stats section component
+  // Stats section component (remains mostly the same, uses `stats` state)
   const statsSection = (
     <Grid container spacing={3}>
       {stats.map((stat, index) => (
@@ -282,6 +316,29 @@ export default function OptimizedAdminDashboard() {
           </Paper>
         </Grid>
       ))}
+    </Grid>
+  );
+
+  // --- Sales Overview Section --- 
+  const salesOverviewSection = salesOverview && (
+    <Grid item xs={12} md={6}>
+      <Paper sx={{ p: 2, borderRadius: 2, height: '100%' }} elevation={2}>
+        <Typography variant="h6" gutterBottom>Sales Overview (Today)</Typography>
+        <Divider sx={{ mb: 2 }} />
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="body1">Total Sales:</Typography>
+          <Typography variant="h5" component="p" color="primary">
+            {salesOverview.totalSalesToday.toLocaleString(undefined, { style: 'currency', currency: 'USD' })}
+            {/* Adjust currency as needed */}
+          </Typography>
+        </Box>
+        <Box>
+          <Typography variant="body1">Total Orders:</Typography>
+          <Typography variant="h5" component="p" color="secondary">
+            {salesOverview.totalOrdersToday.toLocaleString()}
+          </Typography>
+        </Box>
+      </Paper>
     </Grid>
   );
 
@@ -509,9 +566,9 @@ export default function OptimizedAdminDashboard() {
                           }
                         />
                         <Box sx={{ display: 'flex', gap: 1 }}>
-                          <Button
-                            size="small"
-                            variant="contained"
+                          <Button 
+                            size="small" 
+                            variant="outlined" 
                             color="primary"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -525,9 +582,9 @@ export default function OptimizedAdminDashboard() {
                           >
                             Approve
                           </Button>
-                          <Button
-                            size="small"
-                            variant="outlined"
+                          <Button 
+                            size="small" 
+                            variant="outlined" 
                             color="error"
                             onClick={(e) => {
                               e.stopPropagation();

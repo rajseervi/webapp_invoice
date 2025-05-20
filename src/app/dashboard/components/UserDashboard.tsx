@@ -478,5 +478,4 @@ const UserDashboard = ({ stats, recentInvoices }) => {
 };
 
 export default UserDashboard;
-
-You might modify <mcfile name="UserDashboard.tsx" path="d:\Myapp\src\app\dashboard\components\UserDashboard.tsx"></mcfile> to include a section for "My Recent Invoices" or "Quick Actions" specific to that user's role.
+ 

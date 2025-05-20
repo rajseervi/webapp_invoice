@@ -1,5 +1,6 @@
-"use client"
-import React, { useState, useEffect } from 'react';
+'use client';
+
+import { useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
 import {
   Container,
@@ -81,6 +82,7 @@ export default function AdminDashboardPage() {
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+  const [userToChangePassword, setUserToChangePassword] = useState(null);
 
   // Check if user has admin role
   useEffect(() => {
@@ -484,3 +486,8 @@ export default function AdminDashboardPage() {
     </DashboardLayout>
   );
 }
+
+const handleOpenChangePasswordDialog = (user) => {
+  setUserToChangePassword(user);
+  // ... rest of your dialog opening logic
+};

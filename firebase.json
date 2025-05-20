@@ -14,7 +14,7 @@
     "source": "dataconnect"
   },
   "hosting": {
-    "public": "einvoicegen",
+    "public": "public",
     "ignore": [
       "firebase.json",
       "**/.*",

@@ -1,7 +1,10 @@
 {
   "projects": {
-    "default": "einvoicegen"
+    "default": "einvoicegen",
+    "master": "einvoicegen"
   },
+  "targets": {},
+  "etags": {},
   "hosting": {
     "port": 5000,
     "host": "0.0.0.0"

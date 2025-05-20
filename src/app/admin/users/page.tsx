@@ -30,7 +30,8 @@ import {
   Switch,
   FormControlLabel,
   Tooltip,
-  TablePagination
+  TablePagination,
+  Avatar // Add Avatar here
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -119,6 +120,13 @@ export default function AdminUsersPage() { // Assuming this is the component nam
   // --- End State for Delete User Dialog ---
 
 
+  // --- State for Approve/Reject Actions ---
+  const [actionLoading, setActionLoading] = useState<string | null>(null); // Stores user ID being acted upon
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  // --- End State for Approve/Reject Actions ---
+
+
   // Check if user has admin role
   useEffect(() => {
     if (userRole === null) return; // Wait for role to load
@@ -137,6 +145,8 @@ export default function AdminUsersPage() { // Assuming this is the component nam
       setLoading(true);
       setError(null);
       setSuccess(null);
+      setActionError(null); // Clear action errors on refetch
+      setActionSuccess(null); // Clear action success on refetch
 
       // Fetch Roles
       const rolesCollection = collection(db, 'roles');
@@ -604,4 +614,4 @@ export default function AdminUsersPage() { // Assuming this is the component nam
     } finally {
       setChangePasswordLoading(false);
     }
-  }; 
+  };

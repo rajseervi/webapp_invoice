@@ -30,12 +30,13 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import HelpIcon from '@mui/icons-material/Help';
 import LogoutIcon from '@mui/icons-material/Logout';
 import CloseIcon from '@mui/icons-material/Close';
-import Navigation from './ImprovedNavigation';
+// import Navigation from './ImprovedNavigation';
+import { ModernSidebar } from '@/components/ModernSidebar';
 import { handleLogout } from '@/utils/authRedirects';
 
-// Assuming APPBAR_HEIGHT and DRAWER_WIDTH are defined elsewhere or passed as props
-const APPBAR_HEIGHT = 64; // Example value, adjust if necessary
-const DRAWER_WIDTH = 240; // Example value, adjust if necessary
+// Define constants for layout dimensions
+const APPBAR_HEIGHT = 64; // Height of the app bar
+const DRAWER_WIDTH = 240; // Width of the sidebar - matches ModernSidebar's width
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -287,12 +288,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               noWrap 
               component="div" 
               sx={{ 
-                fontWeight: 600,
+                fontWeight: 700,
                 letterSpacing: '0.5px',
                 color: theme.palette.common.white,
+                background: 'linear-gradient(45deg, #fff 30%, #f0f0f0 90%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
               }}
             >
-              Invoice Mangement System
+              MASTERMIND
             </Typography>
           </Box>
           
@@ -520,71 +524,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </Toolbar>
       </AppBar>
       
-      {/* Drawer */}
-      <Drawer
-        variant={isMobile ? "temporary" : "persistent"}
-        open={drawerOpen}
-        onClose={closeDrawer}
-        ModalProps={{
-          keepMounted: true, // Better mobile performance for temporary drawer
-        }}
-        sx={{
-          width: DRAWER_WIDTH,
-          flexShrink: 11,
-          '& .MuiDrawer-paper': {
-            width: DRAWER_WIDTH,
-            boxSizing: 'border-box',
-            borderRight: `1px solid ${alpha(theme.palette.divider, 0.7)}`,
-            boxShadow: isMobile ? '0 8px 10px -5px rgba(0,0,0,0.2)' : 'none',
-            bgcolor: theme.palette.mode === 'dark' 
-              ? alpha(theme.palette.background.paper, 0.9) 
-              : alpha(theme.palette.background.paper, 0.98),
-            top: isMobile ? 0 : APPBAR_HEIGHT, // Use constant
-            height: isMobile ? '100%' : `calc(100% - ${APPBAR_HEIGHT}px)`, // Use constant
-          },
-        }}
-      >
-        {/* Drawer Header - only for mobile */}
-        {isMobile && (
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: theme.spacing(0, 2),
-            height: APPBAR_HEIGHT,
-            borderBottom: `1px solid ${theme.palette.divider}`,
-          }}>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>Menu</Typography>
-            <IconButton onClick={closeDrawer} edge="end">
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        )}
-        
-        {/* Navigation */}
-        <Box sx={{ 
-          overflow: 'auto',
-          height: isMobile ? `calc(100% - ${APPBAR_HEIGHT}px)` : '100%',
-          '&::-webkit-scrollbar': {
-            width: '4px',
-          },
-          '&::-webkit-scrollbar-track': {
-            background: 'transparent',
-          },
-          '&::-webkit-scrollbar-thumb': {
-            background: alpha(theme.palette.divider, 0.3),
-            borderRadius: '4px',
-          },
-          '&::-webkit-scrollbar-thumb:hover': {
-            background: alpha(theme.palette.divider, 0.5),
-          },
-        }}>
-          <Navigation 
-            onItemClick={handleNavItemClick}
-            miniDrawer={false} // Assuming miniDrawer state is handled if needed
-          />
-        </Box>
-      </Drawer>
+      {/* Modern Sidebar */}
+      <ModernSidebar 
+        isOpen={drawerOpen}
+        onToggle={toggleDrawer}
+        onMobileClose={closeDrawer}
+        userName={currentUser?.displayName || currentUser?.email || 'User'}
+        userRole={userRole || 'User'}
+        userAvatar={currentUser?.photoURL || undefined}
+      />
       
       {/* Main Content */}
       <Box 
@@ -594,33 +542,18 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           pt: `${APPBAR_HEIGHT}px`, // Use constant
           height: '100vh',
           overflow: 'auto',
-          transition: theme.transitions.create('margin', {
+          transition: theme.transitions.create(['margin', 'width'], {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.leavingScreen,
           }),
-          // marginLeft: isMobile ? 0 : `-${DRAWER_WIDTH}px`, // Initial margin for persistent drawer
-          marginLeft: `-${DRAWER_WIDTH}px`, // Default to closed for persistent
+          width: '100%',
           ...(drawerOpen && !isMobile && {
-            transition: theme.transitions.create('margin', {
+            transition: theme.transitions.create(['margin', 'width'], {
               easing: theme.transitions.easing.easeOut,
               duration: theme.transitions.duration.enteringScreen,
             }),
-            marginLeft: 0, // Open drawer shifts margin to 0
+            width: `calc(100% - ${DRAWER_WIDTH}px)`,
           }),
-          // This logic might need adjustment based on whether DRAWER_WIDTH is part of the main content's width calculation
-          // or if the drawer overlays or pushes content. The original code had:
-          // marginLeft: '-220px', 
-          // ...(drawerOpen && !isMobile && { marginLeft: `${DRAWER_WIDTH}px`, })
-          // The above seems to imply the main content shifts by DRAWER_WIDTH when open.
-          // If drawer is persistent and pushes content, initial marginLeft should be 0 when drawer is closed,
-          // and content width should be `calc(100% - ${DRAWER_WIDTH}px)` when open.
-          // The current MUI persistent drawer usually handles this by adjusting the main content's margin.
-          // Let's revert to a structure closer to the original logic for marginLeft if it was working as intended.
-          // Reverting marginLeft logic to be closer to original:
-          // marginLeft: !isMobile && !drawerOpen ? `-${DRAWER_WIDTH}px` : 0, // Simplified
-          // The original logic for marginLeft was:
-           marginLeft: !isMobile ? (drawerOpen ? 0 : `-${DRAWER_WIDTH}px`) : 0, // Adjusted for clarity
-           width: !isMobile && drawerOpen ? `calc(100% - ${DRAWER_WIDTH}px)` : '100%', // Adjust width with drawer
           bgcolor: theme.palette.mode === 'dark' 
             ? alpha(theme.palette.background.default, 0.97) 
             : '#f8f9fa',

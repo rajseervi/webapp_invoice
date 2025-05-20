@@ -25,6 +25,7 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
+import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
 
 const salesData = [
   { month: 'Jan', revenue: 40000, profit: 12000 },
@@ -57,6 +58,8 @@ export default function Reports() {
   const [tabValue, setTabValue] = useState(0);
 
   return (
+
+    <DashboardLayout>
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Typography variant="h4" gutterBottom>
         Reports & Analytics
@@ -118,5 +121,6 @@ export default function Reports() {
         </TabPanel>
       </Paper>
     </Container>
+    </DashboardLayout>
   );
 }

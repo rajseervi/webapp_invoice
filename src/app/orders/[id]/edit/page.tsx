@@ -90,12 +90,76 @@ interface OrderItemWithProduct extends OrderItem {
   product?: Product;
 }
 
-
 export default function OrderEditPage({ params }: OrderEditPageProps) {
   const resolvedParams = React.use(params);
   const id = resolvedParams.id;
   const router = useRouter();
   const theme = useTheme();
+  
+  const handleAddProduct = () => {
+    if (!formData) return;
+    
+    setFormData(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        items: [
+          ...prev.items,
+          {
+            productId: '',
+            quantity: 1,
+            price: 0,
+            total: 0
+          }
+        ]
+      };
+    });
+  };
+  
+  const handleProductSelect = (index: number, product: Product | null) => {
+    if (!formData || !product) return;
+    
+    setFormData(prev => {
+      if (!prev) return null;
+      const newItems = [...prev.items];
+      newItems[index] = {
+        ...newItems[index],
+        productId: product.id,
+        price: product.price,
+        total: product.price * (newItems[index].quantity || 1)
+      };
+      // Recalculate subtotal and total
+      const subtotal = newItems.reduce((sum, item) => sum + item.total, 0);
+      return {
+        ...prev,
+        items: newItems,
+        subtotal: subtotal,
+        total: subtotal // Assuming total is same as subtotal for now, adjust if taxes/discounts apply
+      };
+    });
+  };
+  
+  const handleQuantityChange = (index: number, quantity: number) => {
+    if (!formData) return;
+    
+    setFormData(prev => {
+      if (!prev) return null;
+      const newItems = [...prev.items];
+      newItems[index] = {
+        ...newItems[index],
+        quantity,
+        total: newItems[index].price * quantity
+      };
+      // Recalculate subtotal and total
+      const subtotal = newItems.reduce((sum, item) => sum + item.total, 0);
+      return {
+        ...prev,
+        items: newItems,
+        subtotal: subtotal,
+        total: subtotal // Assuming total is same as subtotal for now, adjust if taxes/discounts apply
+      };
+    });
+  };
   
   // State declarations
   const [products, setProducts] = useState<Product[]>([]);
@@ -773,75 +837,98 @@ export default function OrderEditPage({ params }: OrderEditPageProps) {
                   <Divider sx={{ mb: 3 }} />
                   
                   <TableContainer>
-                    <Table>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Product</TableCell>
-                          <TableCell align="right">Price</TableCell>
-                          <TableCell align="right">Quantity</TableCell>
-                          <TableCell align="right">Total</TableCell>
-                          <TableCell align="right">Actions</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {formData.items.map((item, index) => (
-                          <TableRow key={index}>
-                            <TableCell>
-                              <Box>
-                                <Typography fontWeight="medium">{item.productName}</Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  SKU: {products.find(p => p.id === item.productId)?.sku || 'N/A'}
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Typography>{formatCurrency(item.price)}</Typography>
-                            </TableCell>
-                            <TableCell align="right" sx={{ minWidth: 120 }}>
-                              <TextField
-                                type="number"
-                                value={item.quantity}
-                                onChange={(e) => handleItemChange(index, 'quantity', parseInt(e.target.value, 10))}
-                                variant="outlined"
-                                size="small"
-                                InputProps={{
-                                  inputProps: { min: 1 },
-                                  sx: { borderRadius: 1.5 }
-                                }}
-                              />
-                            </TableCell>
-                            <TableCell align="right">
-                              <Typography fontWeight="medium">
-                                {formatCurrency(item.total)}
-                              </Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Tooltip title="Remove Item">
-                                <IconButton
-                                  size="small"
-                                  color="error"
-                                  onClick={() => handleDeleteItem(index)}
-                                >
-                                  <DeleteIcon />
-                                </IconButton>
-                              </Tooltip>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        <TableRow>
-                          <TableCell colSpan={3} align="right">
-                            <Typography fontWeight="bold">Total:</Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography fontWeight="bold">
-                              {formatCurrency(formData.total)}
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Product</TableCell>
+                <TableCell>Quantity</TableCell>
+                <TableCell>Price</TableCell>
+                <TableCell>Total</TableCell>
+                <TableCell>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {formData.items.map((item, index) => (
+                <TableRow key={index}>
+                  <TableCell sx={{ minWidth: 300 }}>
+                    <Autocomplete
+                      options={products}
+                      getOptionLabel={(option) => `${option.name} (${formatCurrency(option.price)})`}
+                      value={products.find(p => p.id === item.productId) || null}
+                      onChange={(_, newValue) => handleProductSelect(index, newValue)}
+                      loading={productsLoading}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Select Product"
+                          error={Boolean(formErrors[`items.${index}.productId`])}
+                          helperText={formErrors[`items.${index}.productId`]}
+                          InputProps={{
+                            ...params.InputProps,
+                            endAdornment: (
+                              <>
+                                {productsLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                                {params.InputProps.endAdornment}
+                              </>
+                            ),
+                          }}
+                        />
+                      )}
+                      renderOption={(props, option) => (
+                        <Box component="li" {...props}>
+                          <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                            <Typography variant="body1">{option.name}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              SKU: {option.sku} | Price: {formatCurrency(option.price)}
                             </Typography>
-                          </TableCell>
-                          <TableCell />
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
+                          </Box>
+                        </Box>
+                      )}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <TextField
+                      type="number"
+                      value={item.quantity}
+                      onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 0)}
+                      InputProps={{
+                        inputProps: { min: 1 },
+                        startAdornment: <InputAdornment position="start">Qty</InputAdornment>
+                      }}
+                      error={Boolean(formErrors[`items.${index}.quantity`])}
+                      helperText={formErrors[`items.${index}.quantity`]}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Typography>{formatCurrency(item.price)}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography>{formatCurrency(item.total)}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <IconButton
+                      color="error"
+                      onClick={() => handleDeleteItem(index)}
+                      size="small"
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={handleAddProduct}
+              disabled={productsLoading}
+            >
+              Add Product
+            </Button>
+          </Box>
+        </TableContainer>
                 </Paper>
               )}
               

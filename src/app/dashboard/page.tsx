@@ -17,7 +17,14 @@ import {
   Tooltip,
   Card,
   CardContent,
-  useMediaQuery
+  useMediaQuery,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip
 } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import DashboardSkeleton from '@/app/dashboard/components/DashboardSkeleton';

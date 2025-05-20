@@ -830,6 +830,7 @@ export default function InvoiceForm({ onSuccess, invoiceId }: TabbedInvoiceFormP
   const total = subtotal - discountAmount;
   
   const handleSaveInvoice = async () => {
+    // Keep original validation
     if (!selectedPartyId || lineItems.length === 0) {
       setError('Please select a party and add at least one product');
       return;
@@ -839,7 +840,8 @@ export default function InvoiceForm({ onSuccess, invoiceId }: TabbedInvoiceFormP
       setLoading(true);
       setError(null);
 
-      const invoiceData = {
+      // Keep original data structure and calculations
+      const invoiceData: any = { // Use any for flexibility with conditional fields
         invoiceNumber,
         date: invoiceDate,
         partyId: selectedPartyId,
@@ -855,82 +857,97 @@ export default function InvoiceForm({ onSuccess, invoiceId }: TabbedInvoiceFormP
           finalPrice: item.finalPrice,
           category: item.category
         })),
-        subtotal,
-        discount: discountAmount,
-        total,
-        categoryDiscounts: selectedParty?.categoryDiscounts || {},
-        updatedAt: serverTimestamp()
+        subtotal, // Use original calculated subtotal
+        discount: discountAmount, // Use original calculated discountAmount
+        tax: 0, // Assuming tax is not implemented yet
+        shipping: 0, // Assuming shipping is not implemented yet
+        total, // Use original calculated total
+        categoryDiscounts: selectedParty?.categoryDiscounts || {}, // Keep category discounts
+        updatedAt: serverTimestamp() // Keep updatedAt
       };
+
+      let savedInvoiceId = invoiceId; // Variable to hold the final invoice ID
 
       // Use the executeWithRetry utility to handle connectivity issues
       await executeWithRetry(
         async () => {
-          let newInvoiceId;
-          
+          let currentInvoiceId; // ID for the current operation within retry
+
           if (invoiceId) {
             // Update existing invoice
             const invoiceRef = doc(db, 'invoices', invoiceId);
             await updateDoc(invoiceRef, invoiceData);
-            newInvoiceId = invoiceId;
+            currentInvoiceId = invoiceId;
           } else {
             // Create new invoice
-            invoiceData.createdAt = serverTimestamp();
+            invoiceData.createdAt = serverTimestamp(); // Add createdAt for new invoices
             const docRef = await addDoc(collection(db, 'invoices'), invoiceData);
-            newInvoiceId = docRef.id;
-          }
-          
-          // Create a corresponding transaction in the accounting system
-          try {
-            // Only create a transaction for new invoices
-            if (!invoiceId) {
-              // Create the transaction directly using the transaction service
+            currentInvoiceId = docRef.id;
+
+            // Create a corresponding transaction in the accounting system
+            try {
               const transactionId = await transactionService.createTransaction({
                 partyId: selectedPartyId,
                 userId: userId || 'default-user', // Use the userId from useCurrentUser hook
-                amount: total,
+                amount: total, // Use original calculated total
                 type: 'debit', // Invoice creates a receivable (party owes us)
                 description: `Invoice ${invoiceNumber}`,
                 reference: invoiceNumber,
-                date: invoiceDate
+                date: invoiceDate,
+                invoiceId: currentInvoiceId // Link transaction to the new invoice ID
               });
-              
+
               // Log the transaction creation
               console.log(`Created transaction ${transactionId} for invoice ${invoiceNumber}`);
-              
+
               // Update the invoice with the transaction ID for reference
-              if (newInvoiceId) {
-                const invoiceRef = doc(db, 'invoices', newInvoiceId);
+              if (currentInvoiceId) {
+                const invoiceRef = doc(db, 'invoices', currentInvoiceId);
                 await updateDoc(invoiceRef, {
                   transactionId: transactionId
                 });
-                console.log(`Updated invoice ${newInvoiceId} with transaction ID ${transactionId}`);
+                console.log(`Updated invoice ${currentInvoiceId} with transaction ID ${transactionId}`);
               }
+            } catch (transactionError) {
+              console.error('Error creating transaction for invoice:', transactionError);
+              // Don't fail the invoice creation if transaction creation fails
+              // Optionally set a non-blocking warning message
+              // setSuccessMessage((prev) => (prev || '') + ' Warning: Failed to create transaction.');
             }
-          } catch (transactionError) {
-            console.error('Error creating transaction for invoice:', transactionError);
-            // Don't fail the invoice creation if transaction creation fails
           }
-          
-          return newInvoiceId;
+
+          // Update the outer scope variable with the ID from the successful operation
+          savedInvoiceId = currentInvoiceId;
+
+          // Return the ID from the retry block (optional, but matches original structure)
+          return currentInvoiceId;
         },
         3, // Max retries
         (attempt, maxRetries, error) => {
           // This callback is called on each retry attempt
-          setError(`Connection error. Retrying... (Attempt ${attempt}/${maxRetries})`);
+          setError(`Connection error while saving invoice. Retrying... (Attempt ${attempt}/${maxRetries})`);
         }
       );
-      
+
       // If we get here, the operation was successful
-      setSuccessMessage(invoiceId ? 'Invoice updated successfully' : 'Invoice created successfully and transaction recorded');
-      
-      setTimeout(() => {
-        if (onSuccess) {
-          onSuccess();
-        } else {
-          router.push('/invoices');
-        }
-      }, 1500);
-      
+      const successMsg = invoiceId ? 'Invoice updated successfully!' : 'Invoice created successfully!';
+      setSuccessMessage(successMsg);
+
+      // Call onSuccess callback if provided (moved from plan, keeping original position logic)
+      if (onSuccess) {
+        onSuccess();
+      }
+
+      // Redirect to the newly created or updated invoice detail page
+      // Use the savedInvoiceId captured during the successful retry operation
+      if (savedInvoiceId) {
+        // Add the setTimeout as requested by the plan
+        setTimeout(() => {
+          router.push(`/invoices/${savedInvoiceId}`);
+        }, 1500); // Use 1500ms delay from plan
+      }
+      // Removed the fallback router.push('/invoices') as navigation to detail is primary goal
+
     } catch (err) {
       console.error('Error saving invoice:', err);
       setError(getFirestoreErrorMessage(err));

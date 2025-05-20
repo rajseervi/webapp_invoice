@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext'; 
 import { handleLogout } from '@/utils/authRedirects';
 import { HourglassEmpty as HourglassIcon } from '@mui/icons-material';
-import { Download as DownloadIcon, Print as PrintIcon } from '@mui/icons-material';
-
+ 
 export default function PendingApprovalPage() {
   const router = useRouter();
   const { logout } = useAuth();
@@ -23,51 +22,7 @@ export default function PendingApprovalPage() {
   };
  
 
-  // Handle download button click
-  const handleDownload = () => {
-    // Create a Blob with the HTML content
-    const blob = new Blob([getPrintableHTML()], { type: 'text/html' });
-    
-    // Create a URL for the Blob
-    const url = URL.createObjectURL(blob);
-    
-    // Create a temporary anchor element
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'account-pending-approval.html';
-    
-    // Trigger the download
-    document.body.appendChild(a);
-    a.click();
-    
-    // Clean up
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
   
-  // Handle print button click
-  const handlePrint = () => {
-    // Create a new window
-    const printWindow = window.open('', '_blank');
-    
-    if (printWindow) {
-      // Write the HTML content to the new window
-      printWindow.document.write(getPrintableHTML());
-      printWindow.document.close();
-      
-      // Wait for content to load before printing
-      printWindow.onload = function() {
-        printWindow.print();
-        // Close the window after printing (optional)
-        // printWindow.onafterprint = function() {
-        //   printWindow.close();
-        // };
-      };
-    } else {
-      alert('Please allow popups to print this document.');
-    }
-  };
-
   return (
     <Container component="main" maxWidth="sm">
       <Box
@@ -96,26 +51,7 @@ export default function PendingApprovalPage() {
           </Typography>
           
           <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 2 }}>
-            <Button 
-              variant="outlined" 
-              color="primary" 
-              onClick={handleDownload}
-              startIcon={<DownloadIcon />}
-              size="medium"
-            >
-              Download
-            </Button>
-            
-            <Button 
-              variant="outlined" 
-              color="secondary" 
-              onClick={handlePrint}
-              startIcon={<PrintIcon />}
-              size="medium"
-            >
-              Print
-            </Button>
-            
+          
             <Button 
               variant="contained" 
               color="primary" 

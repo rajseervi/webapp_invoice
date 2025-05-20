@@ -44,6 +44,7 @@ import {
   doc 
 } from 'firebase/firestore';
 import { db } from '@/firebase/config';
+import { useRouter } from 'next/navigation'; // Import useRouter
 
 // Define interfaces
 interface Party {
@@ -62,6 +63,7 @@ interface Category {
 }
 
 export default function PartiesPage() {
+  const router = useRouter(); // Initialize useRouter
   const [parties, setParties] = useState<Party[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
@@ -136,6 +138,11 @@ export default function PartiesPage() {
 
     fetchData();
   }, []);
+
+  // Ensure handlePartyNameClick is defined within the PartiesPage component scope
+  const handlePartyNameClick = (partyId: string) => {
+    router.push(`/parties/${partyId}/history`);
+  };
 
   const handleAddParty = () => {
     setSelectedParty(null);
@@ -311,7 +318,12 @@ export default function PartiesPage() {
                   ) : (
                     parties.map((party) => (
                       <TableRow key={party.id}>
-                        <TableCell>{party.name}</TableCell>
+                        <TableCell 
+                          onClick={() => handlePartyNameClick(party.id)} // Call the function here
+                          sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                        >
+                          {party.name}
+                        </TableCell>
                         <TableCell>{party.email || '-'}</TableCell>
                         <TableCell>{party.phone || '-'}</TableCell>
                         <TableCell>{party.address || '-'}</TableCell>
