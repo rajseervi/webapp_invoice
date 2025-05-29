@@ -472,9 +472,10 @@ export default function OptimizedAdminDashboard() {
                               {activity.action}
                             </Typography>
                           }
+                          secondaryTypographyProps={{ component: 'div' }} // <--- ADD THIS
                           secondary={
                             <Box sx={{ color: 'text.secondary' }}>
-                              <Typography variant="body2" sx={{ mb: 0.5 }}>
+                              <Typography variant="body2" component="span" sx={{ mb: 0.5, display: 'block' }}>
                                 {activity.details}
                               </Typography>
                               <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
