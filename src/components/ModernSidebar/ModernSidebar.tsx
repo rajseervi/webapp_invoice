@@ -174,7 +174,7 @@ const ModernSidebar: React.FC<ModernSidebarProps> = ({
       items: [
         {
           title: "Dashboard",
-          path: "/dashboard", // Updated path
+          path: "/admin/dashboard", // Updated path
           icon: <DashboardIcon />
         },
         {

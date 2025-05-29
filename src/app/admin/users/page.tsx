@@ -87,8 +87,44 @@ export default function AdminUsersPage() { // Assuming this is the component nam
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
-  const [openEditDialog, setOpenEditDialog] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  // Add these state declarations near the top with other state hooks
+  const [openEditDialog, setOpenEditDialog] = React.useState(false);
+  const [selectedUser, setSelectedUser] = React.useState<User | null>(null);
+  
+  const handleCloseEditDialog = () => {
+    setOpenEditDialog(false);
+    setSelectedUser(null);
+  };
+
+  // Add this handler function (place it near handleOpenChangePasswordDialog)
+  // const handleEditUser = (user: User) => {
+  //   setSelectedUser(user);
+  //   setOpenEditDialog(true);
+  // };
+  
+  // Keep only one definition of this function (around line 229)
+  // const handleCloseEditDialog = () => {
+  //   setOpenEditDialog(false);
+  //   setSelectedUser(null);
+  // };
+  
+  // Remove any other definitions of handleCloseEditDialog in the file
+  
+  // Then add the dialog component in the JSX (place it near the change password dialog)
+  <Dialog open={openEditDialog} onClose={handleCloseEditDialog}>
+    <DialogTitle>Edit User Role/Status</DialogTitle>
+    <DialogContent>
+      {/* Add your form fields for editing role/status here */}
+    </DialogContent>
+    <DialogActions>
+      <Button onClick={handleCloseEditDialog}>Cancel</Button>
+      // Change this line (around line 121)
+      // Find the button in your JSX (around line 121)
+      <Button onClick={handleSaveUserChanges}>Save</Button>
+      // Change it to:
+      <Button onClick={handleSaveUser}>Save</Button>
+    </DialogActions>
+  </Dialog>
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -202,10 +238,7 @@ export default function AdminUsersPage() { // Assuming this is the component nam
     setOpenEditDialog(true);
   };
 
-  const handleCloseEditDialog = () => {
-    setOpenEditDialog(false);
-    setSelectedUser(null);
-  };
+
 
   const handleEditInputChange = (e: React.ChangeEvent<{ name?: string; value: unknown }>) => {
     const { name, value } = e.target;
@@ -219,31 +252,28 @@ export default function AdminUsersPage() { // Assuming this is the component nam
 
   const handleSaveUser = async () => {
     if (!selectedUser) return;
-
-    // Validate if a role is selected
-    if (!editFormData.role) {
-        setError('Please select a role for the user.');
-        return;
-    }
-
+  
     try {
       setLoading(true);
       setError(null);
-      setSuccess(null);
+      
+      // Update user data in Firestore
       const userRef = doc(db, 'users', selectedUser.id);
       await updateDoc(userRef, {
-        // Save the selected role ID
         role: editFormData.role,
         status: editFormData.status,
-        updatedAt: Timestamp.now() // Add an updated timestamp
+        // Add any other fields you want to update
       });
+  
+      // Refresh user list
+      fetchUsers();
+      setOpenEditDialog(false);
       setSuccess('User updated successfully!');
-      handleCloseEditDialog();
-      fetchData(); // Refresh the data (users and roles)
     } catch (err) {
       console.error('Error updating user:', err);
       setError('Failed to update user. Please try again.');
-      setLoading(false); // Keep dialog open on error
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -479,10 +509,19 @@ export default function AdminUsersPage() { // Assuming this is the component nam
             ) : (
               // Table view - Wrap table and pagination in a Paper component
               <Paper sx={{ width: '100%', overflow: 'hidden', mt: 3 }}>
-                <TableContainer>
-                  <Table stickyHeader aria-label="user table">
+                <TableContainer component={Paper} sx={{ mt: 3 }}>
+                  <Table>
                     <TableHead>
-                      {/* ... Table Headers ... */}
+                      <TableRow>
+                        <TableCell>Avatar</TableCell>
+                        <TableCell>Name</TableCell>
+                        <TableCell>Email</TableCell>
+                        <TableCell>Role</TableCell>
+                        <TableCell>Subscription</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell>Last Active</TableCell>
+                        <TableCell>Actions</TableCell>
+                      </TableRow>
                     </TableHead>
                     <TableBody>
                       {paginatedUsers.map((user) => ( // Assuming pagination logic exists and provides paginatedUsers

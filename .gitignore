@@ -67,3 +67,6 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+src/app/.DS_Store
+.gitignore
+.gitignore

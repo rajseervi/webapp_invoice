@@ -1,6 +1,5 @@
 "use client";
-import { useEffect } from 'react';
-import React, { useState } from 'react';
+import { useEffect, useState } from "react";
 import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
 import OptimizedAdminDashboard from '@/app/dashboard/components/OptimizedAdminDashboard';
 import { useAuth } from '@/contexts/AuthContext';
