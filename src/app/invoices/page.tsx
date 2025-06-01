@@ -26,7 +26,7 @@ import {
   Snackbar,
   Divider
 } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, WhatsApp as WhatsAppIcon } from '@mui/icons-material';
 import { collection, getDocs, orderBy, query, deleteDoc, doc, limit, startAfter, getCountFromServer, where } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import InvoicePrintButton from './components/InvoicePrintButton';
@@ -51,7 +51,24 @@ export default function InvoicesPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  
+
+  const handleSendWhatsApp = (invoice: Invoice) => {
+    // Assuming you have a way to generate a public link to the invoice PDF
+    // For now, let's use the view link as a placeholder
+    const invoiceLink = `${window.location.origin}/invoices/${invoice.id}`;
+    const message = `Hello! Here is your invoice copy:\nInvoice Number: ${invoice.invoiceNumber}\nDate: ${invoice.date}\nTotal: ₹${invoice.total.toFixed(2)}\nView/Download: ${invoiceLink}`;
+    
+    // Encode the message for URL
+    const encodedMessage = encodeURIComponent(message);
+    
+    // Construct the WhatsApp URL. You might need to get the party's phone number.
+    // For demonstration, let's assume a placeholder phone number or prompt the user.
+    // In a real application, you would fetch the party's phone number from the invoice object.
+    const phoneNumber = '91XXXXXXXXXX'; // Replace with actual party phone number or fetch dynamically
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
+    
+    window.open(whatsappUrl, '_blank');
+  };
   // Pagination state
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -434,6 +451,13 @@ export default function InvoicesPage() {
                               invoiceId={invoice.id} 
                               invoiceNumber={invoice.invoiceNumber} 
                             />
+                            <IconButton
+                              size="small"
+                              color="success"
+                              onClick={() => handleSendWhatsApp(invoice)}
+                            >
+                              <WhatsAppIcon fontSize="small" />
+                            </IconButton>
                             <IconButton
                               size="small"
                               color="primary"
