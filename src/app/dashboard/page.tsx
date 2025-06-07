@@ -40,6 +40,8 @@ import KPISummary from './components/KPISummary';
 import EnhancedVisualizations from '@/components/DashboardLayout/EnhancedVisualizations';
 // import PerformanceMetrics from './components/PerformanceMetrics';
 
+import PartySearchDropdown from './components/PartySearchDropdown';
+
 // Import icons
 import {
   Dashboard as DashboardIcon,
@@ -63,10 +65,11 @@ const DashboardContent = () => {
   const { userId, role } = useCurrentUser(); // Assuming role is returned here ('admin', 'manager', 'user')
   const [pendingUsers, setPendingUsers] = useState<number>(0);
 
-  // Add responsive breakpoints
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
-  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+  // Apply responsive spacing
+  const containerSpacing = {
+    p: { xs: 2, sm: 3, md: 4 },
+    gap: { xs: 2, sm: 3 }
+  };
   
   // Use dashboard data hook
  
@@ -119,6 +122,8 @@ const DashboardContent = () => {
   }
 
   // --- Role-Specific Content ---
+
+  const [selectedParty, setSelectedParty] = useState('');
 
   const renderAdminDashboard = () => (
     <>
@@ -231,6 +236,39 @@ const DashboardContent = () => {
           }}
         />
       </Paper>
+      
+      {/* Party Search Dropdown */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h6" gutterBottom>Filter by Party</Typography>
+        <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+          <Box sx={{ flex: 1 }}>
+            <select
+              value={selectedParty}
+              onChange={(e) => setSelectedParty(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: '1px solid #ccc',
+                fontSize: '1rem',
+              }}
+            >
+              <option value="">All Parties</option>
+              {/* Options would be populated from party data */}
+            </select>
+          </Box>
+          <Button 
+            variant="outlined" 
+            color="primary"
+            onClick={() => {
+              // Handle search logic here
+              console.log('Searching for party:', selectedParty);
+            }}
+          >
+            Search
+          </Button>
+        </Box>
+      </Box>
       
       {/* Stats Cards */}
       <Grid container spacing={isMobile ? 2 : 3} sx={{ mb: 4 }}>
@@ -872,3 +910,10 @@ export default function DashboardPage() {
     </DashboardLayout>
   );
 }
+
+// Add smooth loading transitions
+const contentStyle = {
+  opacity: loading ? 0.5 : 1,
+  transition: 'opacity 0.3s ease-in-out',
+  filter: loading ? 'blur(22px)' : 'none'
+};

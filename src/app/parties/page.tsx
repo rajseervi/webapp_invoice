@@ -33,7 +33,9 @@ import {
 import {
   Add as AddIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  Search as SearchIcon,
+  Clear as ClearIcon
 } from '@mui/icons-material';
 import { 
   collection, 
@@ -92,6 +94,9 @@ export default function PartiesPage() {
   const [productDiscountValue, setProductDiscountValue] = useState<number>(0);
   const [products, setProducts] = useState<{id: string, name: string}[]>([]);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredParties, setFilteredParties] = useState<Party[]>([]);
+
   // Fetch data from Firebase
   useEffect(() => {
     const fetchData = async () => {
@@ -138,6 +143,23 @@ export default function PartiesPage() {
 
     fetchData();
   }, []);
+
+  // Update filtered parties when search query or parties change
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredParties(parties);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = parties.filter(party => 
+      party.name.toLowerCase().includes(query) ||
+      party.email.toLowerCase().includes(query) ||
+      party.phone.toLowerCase().includes(query) ||
+      party.address.toLowerCase().includes(query)
+    );
+    setFilteredParties(filtered);
+  }, [searchQuery, parties]);
 
   // Ensure handlePartyNameClick is defined within the PartiesPage component scope
   const handlePartyNameClick = (partyId: string) => {
@@ -272,13 +294,12 @@ export default function PartiesPage() {
 
   return (
     <DashboardLayout>
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Container maxWidth="xl">
         <PageHeader
           title="Parties"
-          subtitle="Manage your customers and suppliers"
           action={
-            <Button 
-              variant="contained" 
+            <Button
+              variant="contained"
               startIcon={<AddIcon />}
               onClick={handleAddParty}
             >
@@ -287,200 +308,255 @@ export default function PartiesPage() {
           }
         />
 
+        {/* Search Bar */}
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <TextField
+            fullWidth
+            variant="outlined"
+            placeholder="Search parties by name, email, phone, or address..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+              endAdornment: searchQuery && (
+                <InputAdornment position="end">
+                  <IconButton
+                    size="small"
+                    onClick={() => setSearchQuery('')}
+                    edge="end"
+                  >
+                    <ClearIcon />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+        </Paper>
+
         {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
             {error}
           </Alert>
         )}
 
-        <Paper sx={{ p: 2 }}>
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-              <CircularProgress />
-            </Box>
-          ) : (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Email</TableCell>
-                    <TableCell>Phone</TableCell>
-                    <TableCell>Address</TableCell>
-                    <TableCell align="center">Actions</TableCell>
+        {loading ? (
+          <Box display="flex" justifyContent="center" p={3}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Email</TableCell>
+                  <TableCell>Phone</TableCell>
+                  <TableCell>Address</TableCell>
+                  <TableCell>Category Discounts</TableCell>
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredParties.map((party) => (
+                  <TableRow key={party.id}>
+                    <TableCell>
+                      <Typography
+                        sx={{
+                          cursor: 'pointer',
+                          color: 'primary.main',
+                          '&:hover': {
+                            textDecoration: 'underline',
+                          },
+                        }}
+                        onClick={() => handlePartyNameClick(party.id)}
+                      >
+                        {party.name}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{party.email}</TableCell>
+                    <TableCell>{party.phone}</TableCell>
+                    <TableCell>{party.address}</TableCell>
+                    <TableCell>
+                      {Object.entries(party.categoryDiscounts || {}).map(([category, discount]) => (
+                        <Chip
+                          key={category}
+                          label={`${category}: ${discount}%`}
+                          size="small"
+                          sx={{ mr: 0.5, mb: 0.5 }}
+                        />
+                      ))}
+                    </TableCell>
+                    <TableCell>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleEditParty(party)}
+                        sx={{ mr: 1 }}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDeleteParty(party.id)}
+                        color="error"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </TableCell>
                   </TableRow>
-                </TableHead>
-                <TableBody>
-                  {parties.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} align="center">No parties found</TableCell>
-                    </TableRow>
-                  ) : (
-                    parties.map((party) => (
-                      <TableRow key={party.id}>
-                        <TableCell 
-                          onClick={() => handlePartyNameClick(party.id)} // Call the function here
-                          sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                        >
-                          {party.name}
-                        </TableCell>
-                        <TableCell>{party.email || '-'}</TableCell>
-                        <TableCell>{party.phone || '-'}</TableCell>
-                        <TableCell>{party.address || '-'}</TableCell>
-                        <TableCell align="center">
-                          <Button 
-                            size="small" 
-                            onClick={() => handleEditParty(party)}
-                          >
-                            Edit
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </Paper>
-      </Container>
-
-      {/* Add/Edit Party Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
-        <DialogTitle>{selectedParty ? 'Edit Party' : 'Add New Party'}</DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 2 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <TextField
-                  label="Party Name"
-                  name="name"
-                  fullWidth
-                  value={formData.name}
-                  onChange={handleInputChange}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="Email"
-                  name="email"
-                  fullWidth
-                  value={formData.email}
-                  onChange={handleInputChange}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="Phone"
-                  name="phone"
-                  fullWidth
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  label="Address"
-                  name="address"
-                  fullWidth
-                  multiline
-                  rows={2}
-                  value={formData.address}
-                  onChange={handleInputChange}
-                />
-              </Grid>
-              
-              <Grid item xs={12}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                  <Typography variant="subtitle1">Category Discounts</Typography>
-                  <Button 
-                    size="small" 
-                    startIcon={<AddIcon />}
-                    onClick={handleAddDiscount}
-                  >
-                    Add Discount
-                  </Button>
-                </Box>
-                
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {Object.entries(formData.categoryDiscounts).map(([category, discount]) => (
-                    <Chip 
-                      key={category}
-                      label={`${category}: ${discount}%`}
-                      onDelete={() => handleRemoveDiscount(category)}
-                      color="primary"
-                    />
-                  ))}
-                  {Object.keys(formData.categoryDiscounts).length === 0 && (
-                    <Typography variant="body2" color="text.secondary">
-                      No category discounts added yet
-                    </Typography>
-                  )}
-                </Box>
-              </Grid>
-            </Grid>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button 
-            onClick={handleSaveParty} 
-            variant="contained"
-            disabled={!formData.name || loading}
-          >
-            {loading ? <CircularProgress size={24} /> : 'Save'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Add Category Discount Dialog */}
-      <Dialog open={openDiscountDialog} onClose={() => setOpenDiscountDialog(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Add Category Discount</DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <FormControl fullWidth>
-              <InputLabel>Category</InputLabel>
-              <Select
-                value={selectedCategory}
-                label="Category"
-                onChange={(e) => setSelectedCategory(e.target.value)}
-              >
-                {categories.map((category) => (
-                  <MenuItem 
-                    key={category.id} 
-                    value={category.name}
-                    disabled={formData.categoryDiscounts[category.name] !== undefined}
-                  >
-                    {category.name}
-                  </MenuItem>
                 ))}
-              </Select>
-            </FormControl>
-            
-            <TextField
-              label="Discount (%)"
-              type="number"
-              fullWidth
-              value={discountValue}
-              onChange={(e) => setDiscountValue(Number(e.target.value))}
-              InputProps={{
-                inputProps: { min: 0, max: 100 },
-                endAdornment: <InputAdornment position="end">%</InputAdornment>,
-              }}
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDiscountDialog(false)}>Cancel</Button>
-          <Button 
-            onClick={handleSaveDiscount} 
-            variant="contained"
-            disabled={!selectedCategory || discountValue < 0 || discountValue > 100}
-          >
-            Add
-          </Button>
-        </DialogActions>
-      </Dialog>
-   </DashboardLayout>
+                {filteredParties.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center">
+                      {searchQuery ? 'No parties found matching your search.' : 'No parties found.'}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+
+        {/* Add/Edit Party Dialog */}
+        <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
+          <DialogTitle>{selectedParty ? 'Edit Party' : 'Add New Party'}</DialogTitle>
+          <DialogContent>
+            <Box sx={{ mt: 2 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    label="Party Name"
+                    name="name"
+                    fullWidth
+                    value={formData.name}
+                    onChange={handleInputChange}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Email"
+                    name="email"
+                    fullWidth
+                    value={formData.email}
+                    onChange={handleInputChange}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Phone"
+                    name="phone"
+                    fullWidth
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    label="Address"
+                    name="address"
+                    fullWidth
+                    multiline
+                    rows={2}
+                    value={formData.address}
+                    onChange={handleInputChange}
+                  />
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="subtitle1">Category Discounts</Typography>
+                    <Button 
+                      size="small" 
+                      startIcon={<AddIcon />}
+                      onClick={handleAddDiscount}
+                    >
+                      Add Discount
+                    </Button>
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {Object.entries(formData.categoryDiscounts).map(([category, discount]) => (
+                      <Chip 
+                        key={category}
+                        label={`${category}: ${discount}%`}
+                        onDelete={() => handleRemoveDiscount(category)}
+                        color="primary"
+                      />
+                    ))}
+                    {Object.keys(formData.categoryDiscounts).length === 0 && (
+                      <Typography variant="body2" color="text.secondary">
+                        No category discounts added yet
+                      </Typography>
+                    )}
+                  </Box>
+                </Grid>
+              </Grid>
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseDialog}>Cancel</Button>
+            <Button 
+              onClick={handleSaveParty} 
+              variant="contained"
+              disabled={!formData.name || loading}
+            >
+              {loading ? <CircularProgress size={24} /> : 'Save'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Add Category Discount Dialog */}
+        <Dialog open={openDiscountDialog} onClose={() => setOpenDiscountDialog(false)} maxWidth="xs" fullWidth>
+          <DialogTitle>Add Category Discount</DialogTitle>
+          <DialogContent>
+            <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <FormControl fullWidth>
+                <InputLabel>Category</InputLabel>
+                <Select
+                  value={selectedCategory}
+                  label="Category"
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                >
+                  {categories.map((category) => (
+                    <MenuItem 
+                      key={category.id} 
+                      value={category.name}
+                      disabled={formData.categoryDiscounts[category.name] !== undefined}
+                    >
+                      {category.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              
+              <TextField
+                label="Discount (%)"
+                type="number"
+                fullWidth
+                value={discountValue}
+                onChange={(e) => setDiscountValue(Number(e.target.value))}
+                InputProps={{
+                  inputProps: { min: 0, max: 100 },
+                  endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                }}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpenDiscountDialog(false)}>Cancel</Button>
+            <Button 
+              onClick={handleSaveDiscount} 
+              variant="contained"
+              disabled={!selectedCategory || discountValue < 0 || discountValue > 100}
+            >
+              Add
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Container>
+    </DashboardLayout>
   );
 }

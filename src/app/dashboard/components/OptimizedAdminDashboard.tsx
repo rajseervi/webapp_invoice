@@ -4,8 +4,6 @@ import {
   Typography,
   Paper,
   Grid,
-  Card,
-  CardContent,
   Box,
   Button,
   Divider,
@@ -16,15 +14,21 @@ import {
   CircularProgress,
   Alert,
   Chip,
-  useTheme
+  useTheme,
+  Avatar,
+  Autocomplete,
+  TextField,
+  InputAdornment
 } from '@mui/material';
 import {
-  People as PeopleIcon,
-  Inventory as InventoryIcon,
   Receipt as ReceiptIcon,
-  Settings as SettingsIcon,
-  Warning as WarningIcon,
-  ArrowForward as ArrowForwardIcon
+  ShoppingCart as ShoppingCartIcon,
+  ArrowForward as ArrowForwardIcon,
+  Person as PersonIcon,
+  CalendarToday as CalendarIcon,
+  AttachMoney as MoneyIcon,
+  Search as SearchIcon,
+  AccountBalance as AccountBalanceIcon
 } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
 import {
@@ -34,47 +38,12 @@ import {
   where,
   orderBy,
   limit,
-  getCountFromServer, // Import getCountFromServer
-  Timestamp // Import Timestamp for date queries
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '@/firebase/config';
-
-// Define interfaces
-interface SystemStat {
-  name: string;
-  value: number;
-  change: number;
-  icon: React.ReactNode;
-  color: string;
-}
-
-interface RecentActivity {
-  id: string;
-  action: string;
-  user: string;
-  timestamp: string;
-  details: string;
-}
-
-interface LowStockItem {
-  id: string;
-  name: string;
-  stock: number;
-  category: string;
-}
-
-interface PendingUser {
-  id: string;
-  name: string;
-  email: string;
-  createdAt: string;
-}
-
-interface SalesOverviewStats {
-  totalSalesToday: number;
-  totalOrdersToday: number;
-  // Potentially add more: totalSalesThisMonth, totalOrdersThisMonth etc.
-}
+import { Invoice } from '@/services/invoiceService';
+import { Order, OrderStatus } from '@/types/order';
+import { Party } from '@/types/party';
 
 export default function OptimizedAdminDashboard() {
   const theme = useTheme();
@@ -82,11 +51,11 @@ export default function OptimizedAdminDashboard() {
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [stats, setStats] = useState<SystemStat[]>([]);
-  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
-  const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
-  const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
-  const [salesOverview, setSalesOverview] = useState<SalesOverviewStats | null>(null);
+  const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
+  const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
+  const [parties, setParties] = useState<Party[]>([]);
+  const [selectedParty, setSelectedParty] = useState<Party | null>(null);
+  const [partySearchLoading, setPartySearchLoading] = useState(false);
 
   // Fetch dashboard data
   useEffect(() => {
@@ -94,153 +63,44 @@ export default function OptimizedAdminDashboard() {
       try {
         setLoading(true);
         
-        // --- Fetch System Stats (Real Data) ---
-        const usersCollection = collection(db, 'users');
-        const productsCollection = collection(db, 'products');
-        const invoicesCollection = collection(db, 'invoices');
-
-        const usersSnapshot = await getCountFromServer(usersCollection);
-        const productsSnapshot = await getCountFromServer(productsCollection);
-        const invoicesSnapshot = await getCountFromServer(invoicesCollection);
-        
-        // Fetch low stock items (existing logic, can be combined)
-        const productsRef = collection(db, 'products');
-        const lowStockQuery = query(
-          productsRef,
-          where('stock', '<', 10),
-          orderBy('stock', 'asc'),
-          limit(5)
+        // Fetch recent 10 invoices
+        const invoicesRef = collection(db, 'invoices');
+        const recentInvoicesQuery = query(
+          invoicesRef,
+          orderBy('createdAt', 'desc'),
+          limit(10)
         );
-        const lowStockSnapshot = await getDocs(lowStockQuery);
-        const lowStockData = lowStockSnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            name: data.name,
-            stock: data.stock,
-            category: data.category
-          };
-        });
-        setLowStockItems(lowStockData);
+        const invoicesSnapshot = await getDocs(recentInvoicesQuery);
+        const invoicesData = invoicesSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Invoice[];
+        setRecentInvoices(invoicesData);
 
-        const fetchedStats: SystemStat[] = [
-          {
-            name: 'Total Users',
-            value: usersSnapshot.data().count,
-            change: 0, // Calculate change based on previous period if needed
-            icon: <PeopleIcon />,
-            color: theme.palette.primary.main
-          },
-          {
-            name: 'Products',
-            value: productsSnapshot.data().count,
-            change: 0,
-            icon: <InventoryIcon />,
-            color: theme.palette.success.main
-          },
-          {
-            name: 'Invoices',
-            value: invoicesSnapshot.data().count,
-            change: 0,
-            icon: <ReceiptIcon />,
-            color: theme.palette.info.main
-          },
-          {
-            name: 'Low Stock Items',
-            value: lowStockData.length, // Or a specific count if criteria is different
-            change: 0, 
-            icon: <WarningIcon />,
-            color: theme.palette.warning.main
-          }
-        ];
-        setStats(fetchedStats);
-        
-        // --- Fetch Sales Overview --- 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Start of today
-        const tomorrow = new Date(today);
-        tomorrow.setDate(today.getDate() + 1); // Start of tomorrow
-
-        const todayTimestamp = Timestamp.fromDate(today);
-        const tomorrowTimestamp = Timestamp.fromDate(tomorrow);
-
-        // Assuming 'invoices' collection has 'createdAt' (Timestamp) and 'totalAmount'
-        const salesQuery = query(
-          invoicesCollection, 
-          where('createdAt', '>=', todayTimestamp),
-          where('createdAt', '<', tomorrowTimestamp)
+        // Fetch pending orders
+        const ordersRef = collection(db, 'orders');
+        const pendingOrdersQuery = query(
+          ordersRef,
+          where('status', '==', OrderStatus.PENDING),
+          orderBy('createdAt', 'desc'),
+          limit(10)
         );
-        const salesSnapshot = await getDocs(salesQuery);
-        let totalSalesToday = 0;
-        salesSnapshot.forEach(doc => {
-          totalSalesToday += doc.data().totalAmount || 0;
-        });
-        setSalesOverview({
-          totalSalesToday: totalSalesToday,
-          totalOrdersToday: salesSnapshot.size
-        });
+        const ordersSnapshot = await getDocs(pendingOrdersQuery);
+        const ordersData = ordersSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Order[];
+        setPendingOrders(ordersData);
 
-        // --- Fetch recent activities (Mock for now) ---
-        const mockActivities: RecentActivity[] = [
-          {
-            id: '1',
-            action: 'User Created',
-            user: 'admin@example.com',
-            timestamp: new Date(Date.now() - 3600000).toISOString(),
-            details: 'Created new user john@example.com'
-          },
-          {
-            id: '2',
-            action: 'Product Updated',
-            user: 'manager@example.com',
-            timestamp: new Date(Date.now() - 7200000).toISOString(),
-            details: 'Updated stock for product "Laptop XPS 15"'
-          },
-          {
-            id: '3',
-            action: 'Invoice Generated',
-            user: 'sales@example.com',
-            timestamp: new Date(Date.now() - 10800000).toISOString(),
-            details: 'Generated invoice #INV-2023-0042 for Customer ABC'
-          },
-          {
-            id: '4',
-            action: 'System Settings Changed',
-            user: 'admin@example.com',
-            timestamp: new Date(Date.now() - 14400000).toISOString(),
-            details: 'Updated company information'
-          },
-        ];
-        setRecentActivities(mockActivities);
-        
-        // --- Fetch pending users (Existing Logic) ---
-        try {
-          const usersRef = collection(db, 'users');
-          const pendingUsersQuery = query(
-            usersRef,
-            where('status', '==', 'pending'),
-            orderBy('createdAt', 'desc'),
-            limit(5)
-          );
-          
-          const pendingUsersSnapshot = await getDocs(pendingUsersQuery);
-          const pendingUsersData = pendingUsersSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              name: data.name || data.displayName || 'Unknown',
-              email: data.email,
-              createdAt: data.createdAt
-            };
-          });
-          setPendingUsers(pendingUsersData);
-        } catch (err) {
-          console.error('Error fetching pending users:', err);
-          setPendingUsers([
-            { id: '1', name: 'John Doe', email: 'john@example.com', createdAt: new Date(Date.now() - 86400000).toISOString() },
-            { id: '2', name: 'Jane Smith', email: 'jane@example.com', createdAt: new Date(Date.now() - 172800000).toISOString() }
-          ]);
-        }
+        // Fetch all parties for the search dropdown
+        const partiesRef = collection(db, 'parties');
+        const partiesQuery = query(partiesRef, orderBy('name', 'asc'));
+        const partiesSnapshot = await getDocs(partiesQuery);
+        const partiesData = partiesSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Party[];
+        setParties(partiesData);
         
         setError(null);
       } catch (err: any) {
@@ -252,103 +112,44 @@ export default function OptimizedAdminDashboard() {
     };
     
     fetchDashboardData();
-  }, [theme.palette]); // Add dependencies if any are used from outside and can change
+  }, []);
 
   // Format date for display
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleString();
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
-  // Stats section component (remains mostly the same, uses `stats` state)
-  const statsSection = (
-    <Grid container spacing={3}>
-      {stats.map((stat, index) => (
-        <Grid item xs={12} sm={6} md={3} key={stat.name}>
-          <Paper
-            sx={{
-              p: 2,
-              display: 'flex',
-              flexDirection: 'column',
-              height: '100%',
-              borderRadius: 2,
-              transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                boxShadow: (theme) => theme.shadows[4],
-              },
-            }}
-            elevation={2}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <Box
-                sx={{
-                  p: 1.5,
-                  borderRadius: 2,
-                  backgroundColor: `${stat.color}15`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  mr: 2,
-                }}
-              >
-                {React.cloneElement(stat.icon as React.ReactElement, {
-                  sx: { color: stat.color, fontSize: 24 }
-                })}
-              </Box>
-              <Typography variant="h6" component="div" color="text.secondary">
-                {stat.name}
-              </Typography>
-            </Box>
-            
-            <Box sx={{ display: 'flex', alignItems: 'baseline', mb: 1 }}>
-              <Typography variant="h4" component="div">
-                {stat.value.toLocaleString()}
-              </Typography>
-              <Typography
-                variant="body2"
-                color={stat.change >= 0 ? 'success.main' : 'error.main'}
-                sx={{ ml: 1, display: 'flex', alignItems: 'center' }}
-              >
-                {stat.change >= 0 ? '+' : ''}{stat.change}%
-              </Typography>
-            </Box>
-          </Paper>
-        </Grid>
-      ))}
-    </Grid>
-  );
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR'
+    }).format(amount);
+  };
 
-  // --- Sales Overview Section --- 
-  const salesOverviewSection = salesOverview && (
-    <Grid item xs={12} md={6}>
-      <Paper sx={{ p: 2, borderRadius: 2, height: '100%' }} elevation={2}>
-        <Typography variant="h6" gutterBottom>Sales Overview (Today)</Typography>
-        <Divider sx={{ mb: 2 }} />
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="body1">Total Sales:</Typography>
-          <Typography variant="h5" component="p" color="primary">
-            {salesOverview.totalSalesToday.toLocaleString(undefined, { style: 'currency', currency: 'USD' })}
-            {/* Adjust currency as needed */}
-          </Typography>
-        </Box>
-        <Box>
-          <Typography variant="body1">Total Orders:</Typography>
-          <Typography variant="h5" component="p" color="secondary">
-            {salesOverview.totalOrdersToday.toLocaleString()}
-          </Typography>
-        </Box>
-      </Paper>
-    </Grid>
-  );
+  // Handle party selection and navigate to statement
+  const handlePartySelect = (party: Party | null) => {
+    setSelectedParty(party);
+    if (party) {
+      router.push(`/parties/${party.id}/history`);
+    }
+  };
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      {/* Header */}
       <Box sx={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        mb: 3,
+        mb: 4,
         flexWrap: 'wrap',
         gap: 2
       }}>
@@ -363,7 +164,7 @@ export default function OptimizedAdminDashboard() {
               position: 'absolute',
               bottom: -8,
               left: 0,
-              width: 40,
+              width: 60,
               height: 4,
               borderRadius: 2,
               backgroundColor: theme.palette.primary.main,
@@ -372,23 +173,6 @@ export default function OptimizedAdminDashboard() {
         >
           Admin Dashboard
         </Typography>
-        <Button 
-          variant="contained" 
-          startIcon={<SettingsIcon />}
-          onClick={() => router.push('/settings')}
-          sx={{
-            borderRadius: 2,
-            textTransform: 'none',
-            px: 3,
-            py: 1,
-            backgroundColor: theme.palette.primary.main,
-            '&:hover': {
-              backgroundColor: theme.palette.primary.dark,
-            },
-          }}
-        >
-          System Settings
-        </Button>
       </Box>
       
       {error && (
@@ -398,380 +182,366 @@ export default function OptimizedAdminDashboard() {
       )}
       
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-          <CircularProgress />
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 8 }}>
+          <CircularProgress size={60} />
         </Box>
       ) : (
         <>
-          {/* Stats Cards */}
-          {statsSection}
-
-          {/* Recent Users and Pending Users */}
-          <Grid container spacing={3} sx={{ mt: 4 }}>
-            {/* Recent Users Section */}
-            <Grid item xs={12} md={6}>
-              <Paper
+          {/* Party Search Section */}
+          <Paper
+            sx={{
+              p: 3,
+              mb: 4,
+              borderRadius: 3,
+              boxShadow: theme.shadows[3],
+              background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[50]} 100%)`,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+              <Avatar sx={{ bgcolor: theme.palette.info.main, width: 48, height: 48 }}>
+                <AccountBalanceIcon />
+              </Avatar>
+              <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                Party Statement Viewer
+              </Typography>
+            </Box>
+            <Divider sx={{ mb: 3 }} />
+            
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+              <Autocomplete
+                options={parties}
+                getOptionLabel={(option) => `${option.name} - ${option.email}`}
+                value={selectedParty}
+                onChange={(event, newValue) => handlePartySelect(newValue)}
+                loading={partySearchLoading}
+                sx={{ flexGrow: 1, minWidth: 300 }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Search Party"
+                    placeholder="Type party name or email..."
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon color="action" />
+                        </InputAdornment>
+                      ),
+                      endAdornment: (
+                        <>
+                          {partySearchLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <Box component="li" {...props}>
+                    <Avatar sx={{ mr: 2, bgcolor: theme.palette.primary.light }}>
+                      <PersonIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                        {option.name}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {option.email} • {option.phone}
+                      </Typography>
+                      {option.outstandingBalance && (
+                        <Typography variant="caption" color="warning.main">
+                          Outstanding: {formatCurrency(option.outstandingBalance)}
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+                )}
+                noOptionsText="No parties found"
+              />
+              
+              <Button
+                variant="contained"
+                disabled={!selectedParty}
+                onClick={() => selectedParty && router.push(`/parties/${selectedParty.id}/history`)}
                 sx={{
-                  height: '100%',
-                  p: 3,
                   borderRadius: 2,
-                  boxShadow: (theme) => theme.shadows[2],
-                  transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: (theme) => theme.shadows[4],
-                  },
+                  textTransform: 'none',
+                  px: 3,
+                  py: 1.5,
+                  minWidth: 120,
                 }}
               >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                    Recent Activity
-                  </Typography>
-                  <Button
-                    size="small"
-                    endIcon={<ArrowForwardIcon />}
-                    onClick={() => router.push('/admin/logs')}
-                    sx={{
-                      borderRadius: 2,
-                      textTransform: 'none',
-                      color: 'primary.main',
-                      '&:hover': { backgroundColor: 'primary.light' },
-                    }}
-                  >
-                    View All
-                  </Button>
+                View Statement
+              </Button>
+            </Box>
+            
+            {selectedParty && (
+              <Box sx={{ mt: 3, p: 2, bgcolor: theme.palette.grey[50], borderRadius: 2 }}>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  Selected Party Details:
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">Name:</Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>{selectedParty.name}</Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">Email:</Typography>
+                    <Typography variant="body1">{selectedParty.email}</Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">Phone:</Typography>
+                    <Typography variant="body1">{selectedParty.phone}</Typography>
+                  </Box>
+                  {selectedParty.outstandingBalance && (
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">Outstanding Balance:</Typography>
+                      <Typography variant="body1" color="warning.main" sx={{ fontWeight: 600 }}>
+                        {formatCurrency(selectedParty.outstandingBalance)}
+                      </Typography>
+                    </Box>
+                  )}
                 </Box>
-                <Divider sx={{ mb: 2 }} />
-                
+              </Box>
+            )}
+          </Paper>
+
+          <Grid container spacing={4}>
+          {/* Recent Invoices Section */}
+          <Grid item xs={12} lg={6}>
+            <Paper
+              sx={{
+                p: 3,
+                borderRadius: 3,
+                boxShadow: theme.shadows[3],
+                height: '100%',
+                background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[50]} 100%)`,
+              }}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Avatar sx={{ bgcolor: theme.palette.primary.main, width: 48, height: 48 }}>
+                    <ReceiptIcon />
+                  </Avatar>
+                  <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    Recent Invoices
+                  </Typography>
+                </Box>
+                <Button
+                  variant="outlined"
+                  endIcon={<ArrowForwardIcon />}
+                  onClick={() => router.push('/invoices')}
+                  sx={{
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    borderColor: theme.palette.primary.main,
+                    color: theme.palette.primary.main,
+                    '&:hover': { 
+                      backgroundColor: theme.palette.primary.light,
+                      borderColor: theme.palette.primary.dark,
+                    },
+                  }}
+                >
+                  View All
+                </Button>
+              </Box>
+              <Divider sx={{ mb: 3 }} />
+              
+              {recentInvoices.length === 0 ? (
+                <Box sx={{ textAlign: 'center', py: 6 }}>
+                  <ReceiptIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
+                  <Typography variant="h6" color="text.secondary">
+                    No invoices found
+                  </Typography>
+                  <Typography variant="body2" color="text.disabled">
+                    Recent invoices will appear here
+                  </Typography>
+                </Box>
+              ) : (
                 <List sx={{ p: 0 }}>
-                  {recentActivities.map((activity) => (
+                  {recentInvoices.map((invoice, index) => (
                     <ListItem
-                      key={activity.id}
+                      key={invoice.id}
                       disablePadding
                       sx={{
-                        mb: 1,
+                        mb: 2,
                         '&:last-child': { mb: 0 },
-                        transition: 'background-color 0.2s',
-                        borderRadius: 1,
-                        overflow: 'hidden',
                       }}
                     >
                       <ListItemButton
+                        onClick={() => router.push(`/invoices/${invoice.id}`)}
                         sx={{
-                          px: 2,
-                          py: 1.5,
-                          borderRadius: 1,
+                          px: 3,
+                          py: 2,
+                          borderRadius: 2,
+                          border: `1px solid ${theme.palette.divider}`,
+                          transition: 'all 0.2s ease-in-out',
                           '&:hover': {
-                            backgroundColor: 'action.hover',
+                            backgroundColor: theme.palette.action.hover,
+                            transform: 'translateY(-2px)',
+                            boxShadow: theme.shadows[2],
                           },
                         }}
                       >
-                        <ListItemText
-                          primary={
-                            <Typography variant="subtitle1" sx={{ fontWeight: 500, mb: 0.5 }}>
-                              {activity.action}
+                        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                          <Avatar sx={{ bgcolor: theme.palette.success.light, mr: 2 }}>
+                            <ReceiptIcon sx={{ color: theme.palette.success.main }} />
+                          </Avatar>
+                          <Box sx={{ flexGrow: 1 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>
+                              {invoice.invoiceNumber}
                             </Typography>
-                          }
-                          secondaryTypographyProps={{ component: 'div' }} // <--- ADD THIS
-                          secondary={
-                            <Box sx={{ color: 'text.secondary' }}>
-                              <Typography variant="body2" component="span" sx={{ mb: 0.5, display: 'block' }}>
-                                {activity.details}
-                              </Typography>
-                              <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                {activity.user} • {formatDate(activity.timestamp)}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 0.5 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                                <Typography variant="body2" color="text.secondary">
+                                  {invoice.partyName || invoice.customer?.name || 'Unknown Customer'}
+                                </Typography>
+                              </Box>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <CalendarIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                                <Typography variant="body2" color="text.secondary">
+                                  {formatDate(invoice.date)}
+                                </Typography>
+                              </Box>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <MoneyIcon sx={{ fontSize: 16, color: 'success.main' }} />
+                              <Typography variant="h6" color="success.main" sx={{ fontWeight: 600 }}>
+                                {formatCurrency(invoice.totalAmount || invoice.total || 0)}
                               </Typography>
                             </Box>
-                          }
-                        />
-                      </ListItemButton>
-                    </ListItem>
-                  ))}
-                </List>
-              </Paper>
-            </Grid>
-
-            {/* Pending Users Section */}
-            <Grid item xs={12} md={6}>
-              <Paper
-                sx={{
-                  height: '100%',
-                  p: 3,
-                  borderRadius: 2,
-                  boxShadow: (theme) => theme.shadows[2],
-                  transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: (theme) => theme.shadows[4],
-                  },
-                }}
-              >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                    Pending User Approvals
-                  </Typography>
-                  <Button
-                    size="small"
-                    endIcon={<ArrowForwardIcon />}
-                    onClick={() => router.push('/users?filter=pending')}
-                    sx={{
-                      borderRadius: 2,
-                      textTransform: 'none',
-                      color: 'primary.main',
-                      '&:hover': { backgroundColor: 'primary.light' },
-                    }}
-                  >
-                    Manage Users
-                  </Button>
-                </Box>
-                <Divider sx={{ mb: 2 }} />
-                
-                <List sx={{ p: 0 }}>
-                  {pendingUsers.map((user) => (
-                    <ListItem
-                      key={user.id}
-                      disablePadding
-                      sx={{
-                        mb: 1,
-                        '&:last-child': { mb: 0 },
-                        transition: 'background-color 0.2s',
-                        borderRadius: 1,
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <ListItemButton
-                        sx={{
-                          px: 2,
-                          py: 1.5,
-                          borderRadius: 1,
-                          '&:hover': {
-                            backgroundColor: 'action.hover',
-                          },
-                        }}
-                      >
-                        <ListItemText
-                          primary={
-                            <Typography variant="subtitle1" sx={{ fontWeight: 500, mb: 0.5 }}>
-                              {user.name || user.email}
-                            </Typography>
-                          }
-                          secondary={
-                            <Box sx={{ color: 'text.secondary' }}>
-                              <Typography variant="body2" sx={{ mb: 0.5 }}>
-                                {user.email}
-                              </Typography>
-                              <Typography variant="caption">
-                                Registered: {formatDate(user.createdAt)}
-                              </Typography>
-                            </Box>
-                          }
-                        />
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                          <Button 
-                            size="small" 
-                            variant="outlined" 
-                            color="primary"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/users/approve/${user.id}`);
-                            }}
-                            sx={{
-                              borderRadius: 2,
-                              textTransform: 'none',
-                              minWidth: 80,
-                            }}
-                          >
-                            Approve
-                          </Button>
-                          <Button 
-                            size="small" 
-                            variant="outlined" 
-                            color="error"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/users/reject/${user.id}`);
-                            }}
-                            sx={{
-                              borderRadius: 2,
-                              textTransform: 'none',
-                              minWidth: 80,
-                            }}
-                          >
-                            Reject
-                          </Button>
+                          </Box>
                         </Box>
                       </ListItemButton>
                     </ListItem>
                   ))}
                 </List>
-              </Paper>
-            </Grid>
+              )}
+            </Paper>
           </Grid>
-          
-          <Grid container spacing={{ xs: 2, sm: 3, md: 4 }} sx={{ width: '100%', mt: { xs: 2, sm: 3, md: 4 } }}>
-            {/* Recent Activity */}
-            <Grid item xs={12} md={6}>
-              <Paper sx={{ p: 2, height: '100%' }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h6">Recent Activity</Typography>
-                  <Button 
-                    size="small" 
-                    endIcon={<ArrowForwardIcon />}
-                    onClick={() => router.push('/admin/logs')}
-                  >
-                    View All
-                  </Button>
-                </Box>
-                <Divider sx={{ mb: 2 }} />
-                
-                {recentActivities.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                    No recent activities found
+
+          {/* Pending Orders Section */}
+          <Grid item xs={12} lg={6}>
+            <Paper
+              sx={{
+                p: 3,
+                borderRadius: 3,
+                boxShadow: theme.shadows[3],
+                height: '100%',
+                background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[50]} 100%)`,
+              }}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Avatar sx={{ bgcolor: theme.palette.warning.main, width: 48, height: 48 }}>
+                    <ShoppingCartIcon />
+                  </Avatar>
+                  <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    Pending Orders
                   </Typography>
-                ) : (
-                  <List>
-                    {recentActivities.map((activity) => (
-                      <ListItem key={activity.id} disablePadding>
-                        <ListItemButton sx={{ px: 1, py: 1.5 }}>
-                          <ListItemText 
-                            primary={activity.action}
-                            secondary={
-                              <React.Fragment>
-                                <Typography variant="body2" component="span">
-                                  {activity.details}
-                                </Typography>
-                                <br />
-                                <Typography variant="caption" color="text.secondary">
-                                  By {activity.user} • {formatDate(activity.timestamp)}
-                                </Typography>
-                              </React.Fragment>
-                            }
-                          />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                )}
-              </Paper>
-            </Grid>
-            
-            {/* Low Stock Items */}
-            <Grid item xs={12} md={6}>
-              <Paper sx={{ p: 2, height: '100%' }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h6">Low Stock Items</Typography>
-                  <Button 
-                    size="small" 
-                    endIcon={<ArrowForwardIcon />}
-                    onClick={() => router.push('/inventory/alerts')}
-                  >
-                    View All
-                  </Button>
                 </Box>
-                <Divider sx={{ mb: 2 }} />
-                
-                {lowStockItems.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                    No low stock items found
+                <Button
+                  variant="outlined"
+                  endIcon={<ArrowForwardIcon />}
+                  onClick={() => router.push('/orders?status=pending')}
+                  sx={{
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    borderColor: theme.palette.warning.main,
+                    color: theme.palette.warning.main,
+                    '&:hover': { 
+                      backgroundColor: theme.palette.warning.light,
+                      borderColor: theme.palette.warning.dark,
+                    },
+                  }}
+                >
+                  View All
+                </Button>
+              </Box>
+              <Divider sx={{ mb: 3 }} />
+              
+              {pendingOrders.length === 0 ? (
+                <Box sx={{ textAlign: 'center', py: 6 }}>
+                  <ShoppingCartIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
+                  <Typography variant="h6" color="text.secondary">
+                    No pending orders
                   </Typography>
-                ) : (
-                  <List>
-                    {lowStockItems.map((item) => (
-                      <ListItem key={item.id} disablePadding>
-                        <ListItemButton sx={{ px: 1, py: 1.5 }}>
-                          <ListItemText 
-                            primary={item.name}
-                            secondary={
-                              <React.Fragment>
-                                <Typography variant="caption" color="text.secondary">
-                                  Category: {item.category}
-                                </Typography>
-                              </React.Fragment>
-                            }
-                          />
-                          <Chip 
-                            label={`Stock: ${item.stock}`} 
-                            color="error" 
-                            size="small" 
-                            variant="outlined"
-                          />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                )}
-              </Paper>
-            </Grid>
-            
-            {/* Pending User Approvals */}
-            <Grid item xs={12}>
-              <Paper sx={{ p: 2, mt: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h6">Pending User Approvals</Typography>
-                  <Button 
-                    size="small" 
-                    endIcon={<ArrowForwardIcon />}
-                    onClick={() => router.push('/users?filter=pending')}
-                  >
-                    Manage Users
-                  </Button>
+                  <Typography variant="body2" color="text.disabled">
+                    Pending orders will appear here
+                  </Typography>
                 </Box>
-                <Divider sx={{ mb: 2 }} />
-                
-                {pendingUsers.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                    No pending user approvals
-                  </Typography>
-                ) : (
-                  <List>
-                    {pendingUsers.map((user) => (
-                      <ListItem key={user.id} disablePadding>
-                        <ListItemButton sx={{ px: 1, py: 1.5 }}>
-                          <ListItemText 
-                            primary={user.name || user.email}
-                            secondary={
-                              <React.Fragment>
-                                <Typography variant="body2" component="span">
-                                  {user.email}
+              ) : (
+                <List sx={{ p: 0 }}>
+                  {pendingOrders.map((order, index) => (
+                    <ListItem
+                      key={order.id}
+                      disablePadding
+                      sx={{
+                        mb: 2,
+                        '&:last-child': { mb: 0 },
+                      }}
+                    >
+                      <ListItemButton
+                        onClick={() => router.push(`/orders/${order.id}`)}
+                        sx={{
+                          px: 3,
+                          py: 2,
+                          borderRadius: 2,
+                          border: `1px solid ${theme.palette.divider}`,
+                          transition: 'all 0.2s ease-in-out',
+                          '&:hover': {
+                            backgroundColor: theme.palette.action.hover,
+                            transform: 'translateY(-2px)',
+                            boxShadow: theme.shadows[2],
+                          },
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                          <Avatar sx={{ bgcolor: theme.palette.warning.light, mr: 2 }}>
+                            <ShoppingCartIcon sx={{ color: theme.palette.warning.main }} />
+                          </Avatar>
+                          <Box sx={{ flexGrow: 1 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>
+                              {order.orderNumber}
+                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 0.5 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                                <Typography variant="body2" color="text.secondary">
+                                  {order.partyName}
                                 </Typography>
-                                <br />
-                                <Typography variant="caption" color="text.secondary">
-                                  Registered: {formatDate(user.createdAt)}
+                              </Box>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <CalendarIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                                <Typography variant="body2" color="text.secondary">
+                                  {formatDate(order.createdAt)}
                                 </Typography>
-                              </React.Fragment>
-                            }
-                          />
-                          <Box sx={{ display: 'flex', gap: 1 }}>
-                            <Button 
-                              size="small" 
-                              variant="outlined" 
-                              color="primary"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/users/approve/${user.id}`);
-                              }}
-                            >
-                              Approve
-                            </Button>
-                            <Button 
-                              size="small" 
-                              variant="outlined" 
-                              color="error"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/users/reject/${user.id}`);
-                              }}
-                            >
-                              Reject
-                            </Button>
+                              </Box>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <MoneyIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+                                <Typography variant="h6" color="warning.main" sx={{ fontWeight: 600 }}>
+                                  {formatCurrency(order.total)}
+                                </Typography>
+                              </Box>
+                              <Chip 
+                                label="PENDING" 
+                                color="warning" 
+                                size="small" 
+                                sx={{ fontWeight: 600 }}
+                              />
+                            </Box>
                           </Box>
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                )}
-              </Paper>
-            </Grid>
+                        </Box>
+                      </ListItemButton>
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+            </Paper>
+          </Grid>
           </Grid>
         </>
       )}

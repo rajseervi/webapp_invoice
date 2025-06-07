@@ -173,7 +173,7 @@ const ModernSidebar: React.FC<ModernSidebarProps> = ({
       title: "Main",
       items: [
         {
-          title: "Dashboard",
+          title: "Dashboardss",
           path: "/admin/dashboard", // Updated path
           icon: <DashboardIcon />
         },
