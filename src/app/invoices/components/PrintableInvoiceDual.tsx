@@ -162,17 +162,17 @@ const InvoiceCopy: React.FC<InvoiceCopyProps> = ({ invoice, subtotal, totalDisco
             <Grid item xs={6}>
               <Box sx={{ mb: 0.2 }}>
                 <Typography variant="subtitle2" color="text.secondary" sx={{ fontSize: '0.65rem', mb: 0.1 }}>
-                  FROM
-                </Typography>
                 {invoice.companyAddress && (
                   <Typography variant="body2" sx={{ fontSize: '0.7rem', lineHeight: 1.1 }}>{invoice.companyAddress}</Typography>
                 )}
                 {invoice.companyPhone && (
                   <Typography variant="body2" sx={{ fontSize: '0.7rem', lineHeight: 1.1 }}>Phone: {invoice.companyPhone}</Typography>
                 )}
+                </Typography>
+                
               </Box>
               
-              <Divider sx={{ my: 0.3 }} />
+             
               
               <Box>
                 <Typography variant="subtitle2" color="text.secondary" sx={{ fontSize: '0.65rem', mb: 0.1 }}>
@@ -197,7 +197,7 @@ const InvoiceCopy: React.FC<InvoiceCopyProps> = ({ invoice, subtotal, totalDisco
                 </Grid>
               </Box>
             </Grid>
-            
+            <Divider sx={{ my: 0.3 }} />
             {/* Right column: Customer Info */}
             <Grid item xs={6}>
               <Box>
@@ -246,42 +246,30 @@ const InvoiceCopy: React.FC<InvoiceCopyProps> = ({ invoice, subtotal, totalDisco
             borderRadius: 1,
             mb: 0.2,
             flex: 1,
-            maxHeight: '8cm', // Adjusted for landscape layout
             '@media print': {
-              maxHeight: '8cm' // Fixed height for consistent printing
+              maxHeight: 'none' // Remove fixed height
             }
           }}
         >
           <Table size="small">
             <TableHead>
               <TableRow sx={{ backgroundColor: '#f8f9fa' }}>
-                <TableCell sx={{ fontWeight: 'bold', width: '35%', py: 0.3, px: 1, fontSize: '0.7rem' }}>Item</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', width: '15%', py: 0.3, px: 1, fontSize: '0.7rem' }}>Qty</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', width: '15%', py: 0.3, px: 1, fontSize: '0.7rem' }} align="right">Price</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', width: '15%', py: 0.3, px: 1, fontSize: '0.7rem' }} align="right">Discount</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', width: '20%', py: 0.3, px: 1, fontSize: '0.7rem' }} align="right">Amount</TableCell>
+              <TableCell sx={{ fontWeight: 'bold', width: '5%', py: 0.3, px: 1, fontSize: '0.7rem' }}>#</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', width: '50%', py: 0.3, px: 1, fontSize: '0.7rem' }}>Item</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', width: '10%', py: 0.3, px: 1, fontSize: '0.7rem' }}>Qty</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', width: '10%', py: 0.3, px: 1, fontSize: '0.7rem' }} align="right">Price</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', width: '10%', py: 0.3, px: 1, fontSize: '0.7rem' }} align="right">Discount</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', width: '10%', py: 0.3, px: 1, fontSize: '0.7rem' }} align="right">Amount</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {invoice.items.map((item, index) => (
                 <TableRow key={index}>
+                  <TableCell sx={{ py: 0.2, px: 1, fontSize: '0.68rem' }}>{index+1}</TableCell>
                   <TableCell sx={{ py: 0.3, px: 1 }}>
-                    <Typography variant="body2" fontWeight="medium" sx={{ fontSize: '0.88rem', lineHeight: 1.1 }}>{item.name}</Typography>
-                    {/* {item.category && (
-                      <Typography 
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ 
-                          display: 'block',
-                          fontSize: '0.5rem',
-                          lineHeight: 1.1
-                        }}
-                      >
-                        {item.category}
-                      </Typography>
-                    )} */}
+                    <Typography variant="body2" fontWeight="medium" sx={{ fontSize: '0.68rem', lineHeight: 1.1 }}>{item.name}</Typography>
                   </TableCell>
-                  <TableCell sx={{ py: 0.3, px: 1, fontSize: '0.88rem' }}>{item.quantity}</TableCell>
+                  <TableCell sx={{ py: 0.2, px: 1, fontSize: '0.68rem' }}>{item.quantity}</TableCell>
                   <TableCell align="right" sx={{ py: 0.3, px: 1, fontSize: '0.7rem' }}>{item.price.toFixed(2)}</TableCell>
                   <TableCell align="right" sx={{ py: 0.3, px: 1 }}>
                     {item.discount > 0 ? (
