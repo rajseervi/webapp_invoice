@@ -297,33 +297,37 @@ export default function PartyLedger({ partyId, party }: PartyLedgerProps) {
 
   return (
     <Box>
-      {/* Header is now handled by the parent component */}
-      
-      {error && (
-        <Alert 
-          severity="error" 
-          sx={{ mb: 3 }}
-          action={
-            <Button 
-              color="inherit" 
-              size="small"
-              onClick={fetchTransactions}
-            >
-              Retry
-            </Button>
-          }
+      {/* Enhanced Header Section */}
+      <Paper sx={{ p: 3, mb: 3, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 2 }} elevation={3}>
+        <Box>
+          <Typography variant="h5" fontWeight={600} gutterBottom>
+            {party.name}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {party.email ? `Email: ${party.email}` : ''} {party.phone ? `| Phone: ${party.phone}` : ''}
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<AddIcon />}
+          onClick={handleAddTransaction}
+          sx={{ display: { xs: 'none', md: 'inline-flex' } }}
         >
-          {error}
-        </Alert>
-      )}
+          Add Transaction
+        </Button>
+      </Paper>
 
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} md={4}>
-          <Card>
+          <Card sx={{ bgcolor: 'error.lighter', borderLeft: '5px solid', borderColor: 'error.main' }}>
             <CardContent>
-              <Typography variant="subtitle2" color="text.secondary">
-                Total Debit (Party Owes)
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <ArrowUpwardIcon color="error" />
+                <Typography variant="subtitle2" color="text.secondary">
+                  Total Debit (Party Owes)
+                </Typography>
+              </Box>
               <Typography variant="h5" sx={{ mt: 1 }}>
                 ₹{summary.totalDebit.toFixed(2)}
               </Typography>
@@ -331,11 +335,14 @@ export default function PartyLedger({ partyId, party }: PartyLedgerProps) {
           </Card>
         </Grid>
         <Grid item xs={12} md={4}>
-          <Card>
+          <Card sx={{ bgcolor: 'success.lighter', borderLeft: '5px solid', borderColor: 'success.main' }}>
             <CardContent>
-              <Typography variant="subtitle2" color="text.secondary">
-                Total Credit (We Owe)
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <ArrowDownwardIcon color="success" />
+                <Typography variant="subtitle2" color="text.secondary">
+                  Total Credit (We Owe)
+                </Typography>
+              </Box>
               <Typography variant="h5" sx={{ mt: 1 }}>
                 ₹{summary.totalCredit.toFixed(2)}
               </Typography>
@@ -343,13 +350,16 @@ export default function PartyLedger({ partyId, party }: PartyLedgerProps) {
           </Card>
         </Grid>
         <Grid item xs={12} md={4}>
-          <Card>
+          <Card sx={{ bgcolor: 'info.lighter', borderLeft: '5px solid', borderColor: summary.balance > 0 ? 'error.main' : summary.balance < 0 ? 'success.main' : 'grey.500' }}>
             <CardContent>
-              <Typography variant="subtitle2" color="text.secondary">
-                Balance
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <PaymentsIcon color={summary.balance > 0 ? 'error' : summary.balance < 0 ? 'success' : 'disabled'} />
+                <Typography variant="subtitle2" color="text.secondary">
+                  Balance
+                </Typography>
+              </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                <Typography variant="h5" color={summary.balance > 0 ? 'error.main' : 'success.main'}>
+                <Typography variant="h5" color={summary.balance > 0 ? 'error.main' : summary.balance < 0 ? 'success.main' : 'text.primary'}>
                   ₹{Math.abs(summary.balance).toFixed(2)}
                 </Typography>
                 <Chip

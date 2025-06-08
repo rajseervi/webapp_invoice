@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
+import EnhancedDashboardLayout from '@/components/DashboardLayout/EnhancedDashboardLayout';
 import {
   Container,
   Typography,
@@ -390,7 +390,7 @@ export default function InvoicesPage() {
   };
   
   return (
-    <DashboardLayout>
+    <EnhancedDashboardLayout>
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         <PageHeader
           title="Invoices"
@@ -545,6 +545,6 @@ export default function InvoicesPage() {
           </Alert>
         </Snackbar>
       </Container>
-    </DashboardLayout>
+    </EnhancedDashboardLayout>
   );
 }

@@ -6,6 +6,7 @@ import ExcelImportExport from '@/components/products/ExcelImportExport';
 import ExportAllProducts from '@/components/products/ExportAllProducts';
 import ExportSelectedProducts from '@/components/products/ExportSelectedProducts';
 import CategoryPriceUpdate from '@/components/products/CategoryPriceUpdate';
+import PdfProductImport from '@/components/products/PdfProductImport';
 import {
   Container,
   Typography,
@@ -54,7 +55,8 @@ import {
   Clear as ClearIcon,
   TuneOutlined as TuneIcon,
   ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon
+  ExpandLess as ExpandLessIcon,
+  PictureAsPdf as PdfIcon
 } from '@mui/icons-material';
 import {
   collection,
@@ -138,6 +140,9 @@ export default function ProductsPage() {
     message: '',
     severity: 'success'
   });
+
+  // PDF Import dialog state
+  const [pdfImportOpen, setPdfImportOpen] = useState(false);
 
   // Pagination state
   const [page, setPage] = useState(0);
@@ -1476,6 +1481,14 @@ export default function ProductsPage() {
         </Box>
         <Box sx={{ display: 'flex', gap: 2  , mt: 2, mb: 1, flexWrap: 'wrap-reverse'}}>
             <ExcelImportExport onSuccess={fetchData} />
+            <Button
+              variant="contained"
+              startIcon={<PdfIcon />}
+              onClick={() => setPdfImportOpen(true)}
+              color="secondary"
+            >
+              Import PDF
+            </Button>
             <CategoryPriceUpdate ref={categoryPriceUpdateRef} onSuccess={fetchData} />
             <ExportAllProducts />
             <RemoveDuplicatesButton onSuccess={fetchData} />
@@ -2706,6 +2719,20 @@ export default function ProductsPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* PDF Import Dialog */}
+      <PdfProductImport
+        open={pdfImportOpen}
+        onClose={() => setPdfImportOpen(false)}
+        onSuccess={() => {
+          fetchData(true);
+          setSnackbar({
+            open: true,
+            message: 'Products imported successfully from PDF!',
+            severity: 'success'
+          });
+        }}
+      />
     </ResponsiveDashboardLayout>
   );
 };

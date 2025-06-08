@@ -1412,7 +1412,7 @@ function a11yProps(index: number) {
                       primary={option.name}
                       secondary={
                         <>
-                          <Typography component="span" variant="body2" color="text.primary">Price: ₹{option.price.toFixed(2)}</Typography>
+                          {/* <Typography component="span" variant="body2" color="text.primary">Price: ₹{option.price.toFixed(2)}</Typography> */}
                           <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 2 }}>Stock: {option.stock !== undefined ? option.stock : 'N/A'}</Typography> {/* Display stock */}
                           <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 2 }}>Category: {option.category || 'N/A'}</Typography>
                         </>

@@ -1,5 +1,5 @@
 "use client"
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '@/components/DashboardLayout/DashboardLayout';
 import PageHeader from '@/components/PageHeader/PageHeader';
 import {
@@ -28,14 +28,39 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  InputAdornment
+  InputAdornment,
+  Card,
+  CardContent,
+  CardActions,
+  Avatar,
+  Tooltip,
+  Fade,
+  Skeleton,
+  useTheme,
+  alpha,
+  Stack,
+  Divider,
+  TablePagination,
+  TableSortLabel,
+  Fab,
+  Zoom
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Search as SearchIcon,
-  Clear as ClearIcon
+  Clear as ClearIcon,
+  Person as PersonIcon,
+  Email as EmailIcon,
+  Phone as PhoneIcon,
+  LocationOn as LocationIcon,
+  Business as BusinessIcon,
+  FilterList as FilterIcon,
+  ViewList as ViewListIcon,
+  ViewModule as ViewModuleIcon,
+  History as HistoryIcon,
+  LocalOffer as DiscountIcon
 } from '@mui/icons-material';
 import { 
   collection, 
@@ -65,13 +90,21 @@ interface Category {
 }
 
 export default function PartiesPage() {
-  const router = useRouter(); // Initialize useRouter
+  const router = useRouter();
+  const theme = useTheme();
   const [parties, setParties] = useState<Party[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedParty, setSelectedParty] = useState<Party | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // View and layout state
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(12);
+  const [orderBy, setOrderBy] = useState<keyof Party>('name');
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
   
   // Form state
   const [formData, setFormData] = useState({
@@ -80,7 +113,7 @@ export default function PartiesPage() {
     phone: '',
     address: '',
     categoryDiscounts: {} as Record<string, number>,
-    productDiscounts: {} as Record<string, number> // Add product discounts to form state
+    productDiscounts: {} as Record<string, number>
   });
   
   // Discount dialog state
@@ -160,6 +193,66 @@ export default function PartiesPage() {
     );
     setFilteredParties(filtered);
   }, [searchQuery, parties]);
+
+  // Sorting function
+  const handleRequestSort = (property: keyof Party) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
+
+  // Sort parties
+  const sortedParties = useMemo(() => {
+    return [...filteredParties].sort((a, b) => {
+      if (orderBy === 'name') {
+        return order === 'asc' 
+          ? a.name.localeCompare(b.name)
+          : b.name.localeCompare(a.name);
+      }
+      return 0;
+    });
+  }, [filteredParties, order, orderBy]);
+
+  // Paginated parties
+  const paginatedParties = useMemo(() => {
+    const startIndex = page * rowsPerPage;
+    return sortedParties.slice(startIndex, startIndex + rowsPerPage);
+  }, [sortedParties, page, rowsPerPage]);
+
+  // Handle page change
+  const handleChangePage = (event: unknown, newPage: number) => {
+    setPage(newPage);
+  };
+
+  // Handle rows per page change
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  // Get party initials for avatar
+  const getPartyInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
+  // Get party avatar color
+  const getPartyAvatarColor = (name: string) => {
+    const colors = [
+      theme.palette.primary.main,
+      theme.palette.secondary.main,
+      theme.palette.error.main,
+      theme.palette.warning.main,
+      theme.palette.info.main,
+      theme.palette.success.main,
+    ];
+    const index = name.length % colors.length;
+    return colors[index];
+  };
 
   // Ensure handlePartyNameClick is defined within the PartiesPage component scope
   const handlePartyNameClick = (partyId: string) => {
@@ -292,133 +385,545 @@ export default function PartiesPage() {
     });
   };
 
+  // Render loading skeleton for cards
+  const renderLoadingSkeleton = () => (
+    <Grid container spacing={3}>
+      {Array.from(new Array(6)).map((_, index) => (
+        <Grid item xs={12} sm={6} md={4} lg={3} key={index}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Skeleton variant="circular" width={48} height={48} sx={{ mr: 2 }} />
+                <Box sx={{ flexGrow: 1 }}>
+                  <Skeleton variant="text" width="80%" height={24} />
+                  <Skeleton variant="text" width="60%" height={20} />
+                </Box>
+              </Box>
+              <Skeleton variant="text" width="100%" height={20} sx={{ mb: 1 }} />
+              <Skeleton variant="text" width="90%" height={20} sx={{ mb: 1 }} />
+              <Skeleton variant="text" width="70%" height={20} />
+            </CardContent>
+          </Card>
+        </Grid>
+      ))}
+    </Grid>
+  );
+
+  // Render party cards
+  const renderPartyCards = () => (
+    <Fade in={!loading}>
+      <Grid container spacing={3}>
+        {paginatedParties.map((party) => (
+          <Grid item xs={12} sm={6} md={4} lg={3} key={party.id}>
+            <Card 
+              sx={{ 
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                transition: 'all 0.3s ease-in-out',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: theme.shadows[8],
+                },
+                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+              }}
+            >
+              <CardContent sx={{ flexGrow: 1, p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Avatar
+                    sx={{
+                      bgcolor: getPartyAvatarColor(party.name),
+                      width: 48,
+                      height: 48,
+                      mr: 2,
+                      fontSize: '1.1rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {getPartyInitials(party.name)}
+                  </Avatar>
+                  <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        color: 'primary.main',
+                        '&:hover': {
+                          textDecoration: 'underline',
+                        },
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      onClick={() => handlePartyNameClick(party.id)}
+                    >
+                      {party.name}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Customer
+                    </Typography>
+                  </Box>
+                </Box>
+
+                <Stack spacing={1.5}>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <EmailIcon sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {party.email || 'No email'}
+                    </Typography>
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <PhoneIcon sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
+                    <Typography variant="body2">
+                      {party.phone || 'No phone'}
+                    </Typography>
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+                    <LocationIcon sx={{ fontSize: 16, mr: 1, color: 'text.secondary', mt: 0.2 }} />
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                      }}
+                    >
+                      {party.address || 'No address'}
+                    </Typography>
+                  </Box>
+
+                  {Object.keys(party.categoryDiscounts || {}).length > 0 && (
+                    <Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <DiscountIcon sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
+                        <Typography variant="body2" color="text.secondary">
+                          Discounts
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {Object.entries(party.categoryDiscounts || {}).slice(0, 2).map(([category, discount]) => (
+                          <Chip
+                            key={category}
+                            label={`${category}: ${discount}%`}
+                            size="small"
+                            variant="outlined"
+                            sx={{ fontSize: '0.75rem' }}
+                          />
+                        ))}
+                        {Object.keys(party.categoryDiscounts || {}).length > 2 && (
+                          <Chip
+                            label={`+${Object.keys(party.categoryDiscounts).length - 2} more`}
+                            size="small"
+                            variant="outlined"
+                            sx={{ fontSize: '0.75rem' }}
+                          />
+                        )}
+                      </Box>
+                    </Box>
+                  )}
+                </Stack>
+              </CardContent>
+              
+              <Divider />
+              
+              <CardActions sx={{ p: 2, justifyContent: 'space-between' }}>
+                <Box>
+                  <Tooltip title="View History">
+                    <IconButton
+                      size="small"
+                      onClick={() => handlePartyNameClick(party.id)}
+                      sx={{ mr: 1 }}
+                    >
+                      <HistoryIcon />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Edit Party">
+                    <IconButton
+                      size="small"
+                      onClick={() => handleEditParty(party)}
+                      sx={{ mr: 1 }}
+                    >
+                      <EditIcon />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+                <Tooltip title="Delete Party">
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDeleteParty(party.id)}
+                    color="error"
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </Tooltip>
+              </CardActions>
+            </Card>
+          </Grid>
+        ))}
+        
+        {paginatedParties.length === 0 && !loading && (
+          <Grid item xs={12}>
+            <Paper 
+              sx={{ 
+                p: 6, 
+                textAlign: 'center',
+                bgcolor: alpha(theme.palette.primary.main, 0.02),
+                border: `2px dashed ${alpha(theme.palette.primary.main, 0.2)}`,
+              }}
+            >
+              <BusinessIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                {searchQuery ? 'No parties found matching your search' : 'No parties yet'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                {searchQuery 
+                  ? 'Try adjusting your search terms or clear the search to see all parties.'
+                  : 'Get started by adding your first party to the system.'
+                }
+              </Typography>
+              {!searchQuery && (
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={handleAddParty}
+                  size="large"
+                >
+                  Add Your First Party
+                </Button>
+              )}
+            </Paper>
+          </Grid>
+        )}
+      </Grid>
+    </Fade>
+  );
+
+  // Render table view
+  const renderTableView = () => (
+    <TableContainer component={Paper} sx={{ mt: 2 }}>
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell>
+              <TableSortLabel
+                active={orderBy === 'name'}
+                direction={orderBy === 'name' ? order : 'asc'}
+                onClick={() => handleRequestSort('name')}
+              >
+                Name
+              </TableSortLabel>
+            </TableCell>
+            <TableCell>Email</TableCell>
+            <TableCell>Phone</TableCell>
+            <TableCell>Address</TableCell>
+            <TableCell>Category Discounts</TableCell>
+            <TableCell align="right">Actions</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {paginatedParties.map((party) => (
+            <TableRow key={party.id} hover>
+              <TableCell>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Avatar
+                    sx={{
+                      bgcolor: getPartyAvatarColor(party.name),
+                      width: 32,
+                      height: 32,
+                      mr: 2,
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    {getPartyInitials(party.name)}
+                  </Avatar>
+                  <Typography
+                    sx={{
+                      cursor: 'pointer',
+                      color: 'primary.main',
+                      fontWeight: 500,
+                      '&:hover': {
+                        textDecoration: 'underline',
+                      },
+                    }}
+                    onClick={() => handlePartyNameClick(party.id)}
+                  >
+                    {party.name}
+                  </Typography>
+                </Box>
+              </TableCell>
+              <TableCell>{party.email || '-'}</TableCell>
+              <TableCell>{party.phone || '-'}</TableCell>
+              <TableCell>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    maxWidth: 200,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {party.address || '-'}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {Object.entries(party.categoryDiscounts || {}).map(([category, discount]) => (
+                    <Chip
+                      key={category}
+                      label={`${category}: ${discount}%`}
+                      size="small"
+                      variant="outlined"
+                    />
+                  ))}
+                </Box>
+              </TableCell>
+              <TableCell align="right">
+                <Tooltip title="View History">
+                  <IconButton
+                    size="small"
+                    onClick={() => handlePartyNameClick(party.id)}
+                    sx={{ mr: 1 }}
+                  >
+                    <HistoryIcon />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Edit">
+                  <IconButton
+                    size="small"
+                    onClick={() => handleEditParty(party)}
+                    sx={{ mr: 1 }}
+                  >
+                    <EditIcon />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Delete">
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDeleteParty(party.id)}
+                    color="error"
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </Tooltip>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+
   return (
     <DashboardLayout>
-      <Container maxWidth="xl">
-        <PageHeader
-          title="Parties"
-          action={
+      <Container maxWidth="xl" sx={{ py: 3 }}>
+        {/* Header Section */}
+        <Box sx={{ mb: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
+                Parties
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Manage your customers and suppliers
+              </Typography>
+            </Box>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
               onClick={handleAddParty}
+              size="large"
+              sx={{
+                borderRadius: 2,
+                px: 3,
+                py: 1.5,
+                fontWeight: 600,
+                textTransform: 'none',
+              }}
             >
               Add Party
             </Button>
-          }
-        />
+          </Box>
 
-        {/* Search Bar */}
-        <Paper sx={{ p: 2, mb: 3 }}>
-          <TextField
-            fullWidth
-            variant="outlined"
-            placeholder="Search parties by name, email, phone, or address..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-              endAdornment: searchQuery && (
-                <InputAdornment position="end">
-                  <IconButton
-                    size="small"
-                    onClick={() => setSearchQuery('')}
-                    edge="end"
-                  >
-                    <ClearIcon />
-                  </IconButton>
-                </InputAdornment>
-              ),
+          {/* Search and Controls */}
+          <Paper 
+            sx={{ 
+              p: 3, 
+              mb: 3,
+              border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+              borderRadius: 2,
             }}
-          />
-        </Paper>
+          >
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} md={8}>
+                <TextField
+                  fullWidth
+                  variant="outlined"
+                  placeholder="Search parties by name, email, phone, or address..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon color="action" />
+                      </InputAdornment>
+                    ),
+                    endAdornment: searchQuery && (
+                      <InputAdornment position="end">
+                        <IconButton
+                          size="small"
+                          onClick={() => setSearchQuery('')}
+                          edge="end"
+                        >
+                          <ClearIcon />
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                    },
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                  <Tooltip title="Table View">
+                    <IconButton
+                      onClick={() => setViewMode('table')}
+                      color={viewMode === 'table' ? 'primary' : 'default'}
+                      sx={{
+                        border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                        borderRadius: 1.5,
+                      }}
+                    >
+                      <ViewListIcon />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Card View">
+                    <IconButton
+                      onClick={() => setViewMode('cards')}
+                      color={viewMode === 'cards' ? 'primary' : 'default'}
+                      sx={{
+                        border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                        borderRadius: 1.5,
+                      }}
+                    >
+                      <ViewModuleIcon />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              </Grid>
+            </Grid>
+          </Paper>
+
+          {/* Stats Cards */}
+          <Grid container spacing={3} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ p: 2, textAlign: 'center', border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
+                <Typography variant="h4" color="primary" sx={{ fontWeight: 700 }}>
+                  {parties.length}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Total Parties
+                </Typography>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ p: 2, textAlign: 'center', border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
+                <Typography variant="h4" color="success.main" sx={{ fontWeight: 700 }}>
+                  {parties.filter(p => Object.keys(p.categoryDiscounts || {}).length > 0).length}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  With Discounts
+                </Typography>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ p: 2, textAlign: 'center', border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
+                <Typography variant="h4" color="info.main" sx={{ fontWeight: 700 }}>
+                  {filteredParties.length}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Search Results
+                </Typography>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ p: 2, textAlign: 'center', border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
+                <Typography variant="h4" color="warning.main" sx={{ fontWeight: 700 }}>
+                  {categories.length}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Categories
+                </Typography>
+              </Card>
+            </Grid>
+          </Grid>
+        </Box>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
             {error}
           </Alert>
         )}
 
+        {/* Content */}
         {loading ? (
-          <Box display="flex" justifyContent="center" p={3}>
-            <CircularProgress />
-          </Box>
+          renderLoadingSkeleton()
         ) : (
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Email</TableCell>
-                  <TableCell>Phone</TableCell>
-                  <TableCell>Address</TableCell>
-                  <TableCell>Category Discounts</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredParties.map((party) => (
-                  <TableRow key={party.id}>
-                    <TableCell>
-                      <Typography
-                        sx={{
-                          cursor: 'pointer',
-                          color: 'primary.main',
-                          '&:hover': {
-                            textDecoration: 'underline',
-                          },
-                        }}
-                        onClick={() => handlePartyNameClick(party.id)}
-                      >
-                        {party.name}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{party.email}</TableCell>
-                    <TableCell>{party.phone}</TableCell>
-                    <TableCell>{party.address}</TableCell>
-                    <TableCell>
-                      {Object.entries(party.categoryDiscounts || {}).map(([category, discount]) => (
-                        <Chip
-                          key={category}
-                          label={`${category}: ${discount}%`}
-                          size="small"
-                          sx={{ mr: 0.5, mb: 0.5 }}
-                        />
-                      ))}
-                    </TableCell>
-                    <TableCell>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleEditParty(party)}
-                        sx={{ mr: 1 }}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDeleteParty(party.id)}
-                        color="error"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filteredParties.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} align="center">
-                      {searchQuery ? 'No parties found matching your search.' : 'No parties found.'}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          <>
+            {viewMode === 'cards' ? renderPartyCards() : renderTableView()}
+            
+            {/* Pagination */}
+            {sortedParties.length > 0 && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+                <Paper sx={{ border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
+                  <TablePagination
+                    component="div"
+                    count={sortedParties.length}
+                    page={page}
+                    onPageChange={handleChangePage}
+                    rowsPerPage={rowsPerPage}
+                    onRowsPerPageChange={handleChangeRowsPerPage}
+                    rowsPerPageOptions={[6, 12, 24, 48]}
+                    labelRowsPerPage="Items per page:"
+                  />
+                </Paper>
+              </Box>
+            )}
+          </>
         )}
+
+        {/* Floating Action Button for Mobile */}
+        <Zoom in={!loading}>
+          <Fab
+            color="primary"
+            aria-label="add party"
+            onClick={handleAddParty}
+            sx={{
+              position: 'fixed',
+              bottom: 24,
+              right: 24,
+              display: { xs: 'flex', md: 'none' },
+            }}
+          >
+            <AddIcon />
+          </Fab>
+        </Zoom>
 
         {/* Add/Edit Party Dialog */}
         <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>

@@ -80,6 +80,7 @@ interface InvoiceCopyProps {
 
 const InvoiceCopy: React.FC<InvoiceCopyProps> = ({ invoice, subtotal, totalDiscount, total, copyType }) => {
   return (
+    
     <Box sx={{ 
       position: 'relative',
       margin: '0 auto',

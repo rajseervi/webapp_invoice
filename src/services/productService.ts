@@ -1,12 +1,27 @@
 import { db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { Product } from '@/types/inventory';
 import { categoryService } from './categoryService';
 
 export const productService = {
-  getProducts: async () => {
-    // Implementation of getting products
-    // Should return Promise<Product[]>
+  getProducts: async (): Promise<Product[]> => {
+    try {
+      const productsSnapshot = await getDocs(collection(db, 'products'));
+      const products: Product[] = [];
+      
+      productsSnapshot.forEach((doc) => {
+        const data = doc.data() as Omit<Product, 'id'>;
+        products.push({
+          id: doc.id,
+          ...data
+        });
+      });
+      
+      return products;
+    } catch (error) {
+      console.error('Error getting products:', error);
+      return [];
+    }
   },
   async createProduct(data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) {
     try {
@@ -20,6 +35,40 @@ export const productService = {
       return docRef.id;
     } catch (error) {
       console.error('Error creating product:', error);
+      throw error;
+    }
+  },
+  
+  async updateProduct(productId: string, data: Partial<Product>) {
+    try {
+      const now = new Date().toISOString();
+      const productRef = doc(db, 'products', productId);
+      
+      await updateDoc(productRef, {
+        ...data,
+        updatedAt: now
+      });
+      
+      return productId;
+    } catch (error) {
+      console.error('Error updating product:', error);
+      throw error;
+    }
+  },
+  
+  async updateProduct(productId: string, data: Partial<Product>) {
+    try {
+      const now = new Date().toISOString();
+      const productRef = doc(db, 'products', productId);
+      
+      await updateDoc(productRef, {
+        ...data,
+        updatedAt: now
+      });
+      
+      return productId;
+    } catch (error) {
+      console.error('Error updating product:', error);
       throw error;
     }
   },
