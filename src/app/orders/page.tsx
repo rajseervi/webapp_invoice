@@ -27,7 +27,21 @@ import {
   MenuItem,
   ListItemIcon,
   ListItemText,
-  Divider
+  Divider,
+  Grid,
+  Card,
+  CardContent,
+  CardActions,
+  alpha,
+  Tooltip,
+  Badge,
+  FormControl,
+  InputLabel,
+  Select,
+  Pagination,
+  Stack,
+  Avatar,
+  LinearProgress
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -40,7 +54,20 @@ import {
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
   Print as PrintIcon,
-  FilterList as FilterListIcon
+  FilterList as FilterListIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  Schedule as ScheduleIcon,
+  AttachMoney as AttachMoneyIcon,
+  ShoppingCart as ShoppingCartIcon,
+  Person as PersonIcon,
+  CalendarToday as CalendarTodayIcon,
+  Receipt as ReceiptIcon,
+  Refresh as RefreshIcon,
+  Download as DownloadIcon,
+  ViewModule as ViewModuleIcon,
+  ViewList as ViewListIcon,
+  Sort as SortIcon
 } from '@mui/icons-material';
 import { orderService } from '@/services/orderService';
 import { Order, OrderStatus, PaymentStatus } from '@/types/order';
@@ -55,38 +82,64 @@ export default function OrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
+  const [paymentFilter, setPaymentFilter] = useState<PaymentStatus | 'all'>('all');
+  const [sortBy, setSortBy] = useState<'date' | 'amount' | 'customer'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [page, setPage] = useState(1);
+  const [itemsPerPage] = useState(10);
   
   // Menu state
   const [actionMenuAnchor, setActionMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   
-  // Fetch orders
+  // Statistics state
+  const [statistics, setStatistics] = useState({
+    totalOrders: 0,
+    totalRevenue: 0,
+    pendingOrders: 0,
+    completedOrders: 0,
+    recentOrders: 0,
+    recentRevenue: 0
+  });
+  
+  // Fetch orders and statistics
   useEffect(() => {
-    const fetchOrders = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const data = await orderService.getOrders();
-        setOrders(data);
-        setFilteredOrders(data);
+        const [ordersData, statsData] = await Promise.all([
+          orderService.getOrders(),
+          orderService.getOrderStatistics()
+        ]);
+        
+        setOrders(ordersData);
+        setFilteredOrders(ordersData);
+        setStatistics(statsData);
         setError(null);
       } catch (err) {
-        console.error('Error fetching orders:', err);
+        console.error('Error fetching data:', err);
         setError('Failed to load orders. Please try again.');
       } finally {
         setLoading(false);
       }
     };
     
-    fetchOrders();
+    fetchData();
   }, []);
   
-  // Filter orders when search term or status filter changes
+  // Filter and sort orders when filters or sort options change
   useEffect(() => {
-    let result = orders;
+    let result = [...orders];
     
     // Apply status filter
     if (statusFilter !== 'all') {
       result = result.filter(order => order.status === statusFilter);
+    }
+    
+    // Apply payment filter
+    if (paymentFilter !== 'all') {
+      result = result.filter(order => order.paymentStatus === paymentFilter);
     }
     
     // Apply search filter
@@ -94,12 +147,35 @@ export default function OrdersPage() {
       const term = searchTerm.toLowerCase();
       result = result.filter(order => 
         order.orderNumber.toLowerCase().includes(term) ||
-        order.partyName.toLowerCase().includes(term)
+        order.partyName.toLowerCase().includes(term) ||
+        order.items.some(item => item.name.toLowerCase().includes(term))
       );
     }
     
+    // Apply sorting
+    result.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'date':
+          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          break;
+        case 'amount':
+          comparison = a.total - b.total;
+          break;
+        case 'customer':
+          comparison = a.partyName.localeCompare(b.partyName);
+          break;
+        default:
+          comparison = 0;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+    
     setFilteredOrders(result);
-  }, [orders, searchTerm, statusFilter]);
+    setPage(1); // Reset to first page when filters change
+  }, [orders, searchTerm, statusFilter, paymentFilter, sortBy, sortOrder]);
   
   // Handle opening action menu
   const handleOpenActionMenu = (event: React.MouseEvent<HTMLElement>, orderId: string) => {
@@ -205,36 +281,228 @@ export default function OrdersPage() {
     }
   };
   
+  // Get paginated orders
+  const getPaginatedOrders = () => {
+    const startIndex = (page - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredOrders.slice(startIndex, endIndex);
+  };
+  
+  // Handle page change
+  const handlePageChange = (event: React.ChangeEvent<unknown>, value: number) => {
+    setPage(value);
+  };
+  
+  // Handle refresh
+  const handleRefresh = async () => {
+    try {
+      setLoading(true);
+      const [ordersData, statsData] = await Promise.all([
+        orderService.getOrders(),
+        orderService.getOrderStatistics()
+      ]);
+      
+      setOrders(ordersData);
+      setStatistics(statsData);
+      setError(null);
+    } catch (err) {
+      console.error('Error refreshing data:', err);
+      setError('Failed to refresh data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   return (
     <DashboardLayout>
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         {/* Header */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: 2,
+          mb: 4 
+        }}>
           <Box>
-            <Typography variant="h4" gutterBottom>
-              Orders
+            <Typography 
+              variant="h4" 
+              gutterBottom
+              sx={{ 
+                fontWeight: 'bold',
+                background: theme => `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent'
+              }}
+            >
+              Order Management
             </Typography>
             <Breadcrumbs aria-label="breadcrumb">
               <MuiLink 
                 underline="hover" 
                 color="inherit" 
                 href="/dashboard"
-                sx={{ cursor: 'pointer' }}
+                sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
               >
+                <ShoppingCartIcon sx={{ mr: 0.5 }} fontSize="inherit" />
                 Dashboard
               </MuiLink>
-              <Typography color="text.primary">Orders</Typography>
+              <Typography color="text.primary" sx={{ display: 'flex', alignItems: 'center' }}>
+                <ReceiptIcon sx={{ mr: 0.5 }} fontSize="inherit" />
+                Orders
+              </Typography>
             </Breadcrumbs>
           </Box>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => router.push('/orders/new')}
-          >
-            New Order
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Tooltip title="Refresh data">
+              <IconButton 
+                onClick={handleRefresh}
+                disabled={loading}
+                sx={{ 
+                  bgcolor: theme => alpha(theme.palette.primary.main, 0.1),
+                  '&:hover': { bgcolor: theme => alpha(theme.palette.primary.main, 0.2) }
+                }}
+              >
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Export orders">
+              <IconButton 
+                sx={{ 
+                  bgcolor: theme => alpha(theme.palette.secondary.main, 0.1),
+                  '&:hover': { bgcolor: theme => alpha(theme.palette.secondary.main, 0.2) }
+                }}
+              >
+                <DownloadIcon />
+              </IconButton>
+            </Tooltip>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => router.push('/orders/new')}
+              sx={{ 
+                borderRadius: 2,
+                px: 3,
+                boxShadow: theme => `0 4px 10px ${alpha(theme.palette.primary.main, 0.3)}`
+              }}
+            >
+              New Order
+            </Button>
+          </Box>
         </Box>
         
+        {/* Statistics Cards */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card 
+              sx={{ 
+                background: theme => `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
+                color: 'white',
+                borderRadius: 2,
+                boxShadow: theme => `0 4px 20px ${alpha(theme.palette.primary.main, 0.3)}`
+              }}
+            >
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography variant="h4" fontWeight="bold">
+                      {statistics.totalOrders}
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      Total Orders
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 56, height: 56 }}>
+                    <ShoppingCartIcon fontSize="large" />
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Card 
+              sx={{ 
+                background: theme => `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.success.dark})`,
+                color: 'white',
+                borderRadius: 2,
+                boxShadow: theme => `0 4px 20px ${alpha(theme.palette.success.main, 0.3)}`
+              }}
+            >
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography variant="h4" fontWeight="bold">
+                      {formatCurrency(statistics.totalRevenue)}
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      Total Revenue
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 56, height: 56 }}>
+                    <AttachMoneyIcon fontSize="large" />
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Card 
+              sx={{ 
+                background: theme => `linear-gradient(135deg, ${theme.palette.warning.main}, ${theme.palette.warning.dark})`,
+                color: 'white',
+                borderRadius: 2,
+                boxShadow: theme => `0 4px 20px ${alpha(theme.palette.warning.main, 0.3)}`
+              }}
+            >
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography variant="h4" fontWeight="bold">
+                      {statistics.pendingOrders}
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      Pending Orders
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 56, height: 56 }}>
+                    <ScheduleIcon fontSize="large" />
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Card 
+              sx={{ 
+                background: theme => `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.info.dark})`,
+                color: 'white',
+                borderRadius: 2,
+                boxShadow: theme => `0 4px 20px ${alpha(theme.palette.info.main, 0.3)}`
+              }}
+            >
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography variant="h4" fontWeight="bold">
+                      {statistics.completedOrders}
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      Completed Orders
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 56, height: 56 }}>
+                    <CheckCircleIcon fontSize="large" />
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+
         {/* Error Alert */}
         {error && (
           <Alert 
@@ -246,139 +514,427 @@ export default function OrdersPage() {
           </Alert>
         )}
         
-        {/* Filters */}
-        <Paper sx={{ p: 2, mb: 3 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-            <TextField
-              placeholder="Search orders..."
-              variant="outlined"
-              size="small"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ flexGrow: 1, maxWidth: { xs: '100%', sm: '300px' } }}
-            />
+        {/* Filters and Controls */}
+        <Paper 
+          sx={{ 
+            p: 3, 
+            mb: 3, 
+            borderRadius: 2,
+            boxShadow: theme => `0 2px 10px ${alpha(theme.palette.primary.main, 0.08)}`
+          }}
+        >
+          <Grid container spacing={3} alignItems="center">
+            {/* Search */}
+            <Grid item xs={12} md={4}>
+              <TextField
+                fullWidth
+                placeholder="Search orders, customers, or products..."
+                variant="outlined"
+                size="small"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon color="primary" />
+                    </InputAdornment>
+                  ),
+                  sx: { borderRadius: 1.5 }
+                }}
+              />
+            </Grid>
             
+            {/* Status Filter */}
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as OrderStatus | 'all')}
+                  label="Status"
+                  sx={{ borderRadius: 1.5 }}
+                >
+                  <MenuItem value="all">All Status</MenuItem>
+                  <MenuItem value={OrderStatus.PENDING}>Pending</MenuItem>
+                  <MenuItem value={OrderStatus.PROCESSING}>Processing</MenuItem>
+                  <MenuItem value={OrderStatus.SHIPPED}>Shipped</MenuItem>
+                  <MenuItem value={OrderStatus.DELIVERED}>Delivered</MenuItem>
+                  <MenuItem value={OrderStatus.COMPLETED}>Completed</MenuItem>
+                  <MenuItem value={OrderStatus.CANCELLED}>Cancelled</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            
+            {/* Payment Filter */}
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Payment</InputLabel>
+                <Select
+                  value={paymentFilter}
+                  onChange={(e) => setPaymentFilter(e.target.value as PaymentStatus | 'all')}
+                  label="Payment"
+                  sx={{ borderRadius: 1.5 }}
+                >
+                  <MenuItem value="all">All Payments</MenuItem>
+                  <MenuItem value={PaymentStatus.PENDING}>Pending</MenuItem>
+                  <MenuItem value={PaymentStatus.PARTIAL}>Partial</MenuItem>
+                  <MenuItem value={PaymentStatus.PAID}>Paid</MenuItem>
+                  <MenuItem value={PaymentStatus.REFUNDED}>Refunded</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            
+            {/* Sort Options */}
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Sort By</InputLabel>
+                <Select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as 'date' | 'amount' | 'customer')}
+                  label="Sort By"
+                  sx={{ borderRadius: 1.5 }}
+                >
+                  <MenuItem value="date">Date</MenuItem>
+                  <MenuItem value="amount">Amount</MenuItem>
+                  <MenuItem value="customer">Customer</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            
+            {/* View Controls */}
+            <Grid item xs={12} sm={6} md={2}>
+              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                <Tooltip title="Sort Order">
+                  <IconButton
+                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                    sx={{ 
+                      bgcolor: theme => alpha(theme.palette.primary.main, 0.1),
+                      '&:hover': { bgcolor: theme => alpha(theme.palette.primary.main, 0.2) }
+                    }}
+                  >
+                    {sortOrder === 'asc' ? <TrendingUpIcon /> : <TrendingDownIcon />}
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="View Mode">
+                  <IconButton
+                    onClick={() => setViewMode(viewMode === 'table' ? 'cards' : 'table')}
+                    sx={{ 
+                      bgcolor: theme => alpha(theme.palette.secondary.main, 0.1),
+                      '&:hover': { bgcolor: theme => alpha(theme.palette.secondary.main, 0.2) }
+                    }}
+                  >
+                    {viewMode === 'table' ? <ViewModuleIcon /> : <ViewListIcon />}
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Grid>
+          </Grid>
+          
+          {/* Quick Status Filters */}
+          <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Quick Filters:
+            </Typography>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               <Chip 
-                label="All" 
-                color={statusFilter === 'all' ? 'primary' : 'default'} 
-                onClick={() => setStatusFilter('all')}
-                sx={{ fontWeight: statusFilter === 'all' ? 'bold' : 'normal' }}
+                label="All Orders" 
+                color={statusFilter === 'all' && paymentFilter === 'all' ? 'primary' : 'default'} 
+                onClick={() => {
+                  setStatusFilter('all');
+                  setPaymentFilter('all');
+                }}
+                size="small"
+                sx={{ fontWeight: statusFilter === 'all' && paymentFilter === 'all' ? 'bold' : 'normal' }}
               />
               <Chip 
-                label="Pending" 
-                color={statusFilter === OrderStatus.PENDING ? 'primary' : 'default'} 
-                onClick={() => setStatusFilter(OrderStatus.PENDING)}
-                sx={{ fontWeight: statusFilter === OrderStatus.PENDING ? 'bold' : 'normal' }}
+                label="Pending Payment" 
+                color={paymentFilter === PaymentStatus.PENDING ? 'warning' : 'default'} 
+                onClick={() => setPaymentFilter(PaymentStatus.PENDING)}
+                size="small"
+                sx={{ fontWeight: paymentFilter === PaymentStatus.PENDING ? 'bold' : 'normal' }}
               />
               <Chip 
-                label="Processing" 
-                color={statusFilter === OrderStatus.PROCESSING ? 'primary' : 'default'} 
+                label="Ready to Ship" 
+                color={statusFilter === OrderStatus.PROCESSING ? 'info' : 'default'} 
                 onClick={() => setStatusFilter(OrderStatus.PROCESSING)}
+                size="small"
                 sx={{ fontWeight: statusFilter === OrderStatus.PROCESSING ? 'bold' : 'normal' }}
               />
               <Chip 
-                label="Shipped" 
-                color={statusFilter === OrderStatus.SHIPPED ? 'primary' : 'default'} 
-                onClick={() => setStatusFilter(OrderStatus.SHIPPED)}
-                sx={{ fontWeight: statusFilter === OrderStatus.SHIPPED ? 'bold' : 'normal' }}
-              />
-              <Chip 
                 label="Completed" 
-                color={statusFilter === OrderStatus.COMPLETED ? 'primary' : 'default'} 
+                color={statusFilter === OrderStatus.COMPLETED ? 'success' : 'default'} 
                 onClick={() => setStatusFilter(OrderStatus.COMPLETED)}
+                size="small"
                 sx={{ fontWeight: statusFilter === OrderStatus.COMPLETED ? 'bold' : 'normal' }}
               />
             </Box>
           </Box>
         </Paper>
         
-        {/* Orders Table */}
-        <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-          <TableContainer sx={{ maxHeight: 'calc(100vh - 300px)' }}>
-            <Table stickyHeader>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Order #</TableCell>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Customer</TableCell>
-                  <TableCell>Total</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Payment</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
-                      <CircularProgress size={40} />
-                    </TableCell>
-                  </TableRow>
-                ) : filteredOrders.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
-                      <Typography variant="body1" color="text.secondary">
-                        No orders found
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredOrders.map((order) => (
-                    <TableRow 
-                      key={order.id}
-                      hover
-                      sx={{ 
-                        '&:hover': { 
-                          cursor: 'pointer',
-                          backgroundColor: 'action.hover'
-                        }
-                      }}
-                      onClick={() => handleViewOrder(order.id!)}
-                    >
-                      <TableCell>{order.orderNumber}</TableCell>
-                      <TableCell>{formatDate(order.createdAt)}</TableCell>
-                      <TableCell>{order.partyName}</TableCell>
-                      <TableCell>{formatCurrency(order.total)}</TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={order.status.charAt(0).toUpperCase() + order.status.slice(1)} 
-                          color={getStatusChipColor(order.status) as any}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)} 
-                          color={getPaymentStatusChipColor(order.paymentStatus) as any}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell align="right">
+        {/* Orders Display */}
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+            <CircularProgress size={60} />
+          </Box>
+        ) : viewMode === 'cards' ? (
+          /* Card View */
+          <Grid container spacing={3}>
+            {getPaginatedOrders().length === 0 ? (
+              <Grid item xs={12}>
+                <Paper sx={{ p: 8, textAlign: 'center', borderRadius: 2 }}>
+                  <ShoppingCartIcon sx={{ fontSize: 64, color: 'text.secondary', opacity: 0.3, mb: 2 }} />
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    No orders found
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Try adjusting your filters or create a new order
+                  </Typography>
+                </Paper>
+              </Grid>
+            ) : (
+              getPaginatedOrders().map((order) => (
+                <Grid item xs={12} sm={6} lg={4} key={order.id}>
+                  <Card 
+                    sx={{ 
+                      borderRadius: 2,
+                      boxShadow: theme => `0 2px 10px ${alpha(theme.palette.primary.main, 0.08)}`,
+                      transition: 'all 0.3s ease',
+                      cursor: 'pointer',
+                      '&:hover': {
+                        transform: 'translateY(-4px)',
+                        boxShadow: theme => `0 8px 25px ${alpha(theme.palette.primary.main, 0.15)}`
+                      }
+                    }}
+                    onClick={() => handleViewOrder(order.id!)}
+                  >
+                    <CardContent sx={{ p: 3 }}>
+                      {/* Header */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                        <Box>
+                          <Typography variant="h6" fontWeight="bold" gutterBottom>
+                            #{order.orderNumber}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center' }}>
+                            <CalendarTodayIcon sx={{ fontSize: 16, mr: 0.5 }} />
+                            {formatDate(order.createdAt)}
+                          </Typography>
+                        </Box>
                         <IconButton
                           size="small"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleOpenActionMenu(e, order.id!);
                           }}
+                          sx={{ 
+                            bgcolor: theme => alpha(theme.palette.primary.main, 0.1),
+                            '&:hover': { bgcolor: theme => alpha(theme.palette.primary.main, 0.2) }
+                          }}
                         >
                           <MoreVertIcon />
                         </IconButton>
+                      </Box>
+                      
+                      {/* Customer */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                        <Avatar sx={{ bgcolor: 'primary.main', width: 32, height: 32, mr: 1.5 }}>
+                          <PersonIcon fontSize="small" />
+                        </Avatar>
+                        <Typography variant="body1" fontWeight="medium">
+                          {order.partyName}
+                        </Typography>
+                      </Box>
+                      
+                      {/* Order Details */}
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                          Items: {order.items.length} • Total: {formatCurrency(order.total)}
+                        </Typography>
+                        <LinearProgress 
+                          variant="determinate" 
+                          value={
+                            order.status === OrderStatus.COMPLETED ? 100 :
+                            order.status === OrderStatus.SHIPPED ? 80 :
+                            order.status === OrderStatus.PROCESSING ? 60 :
+                            order.status === OrderStatus.PENDING ? 20 : 0
+                          }
+                          sx={{ 
+                            height: 6, 
+                            borderRadius: 3,
+                            bgcolor: theme => alpha(theme.palette.primary.main, 0.1)
+                          }}
+                        />
+                      </Box>
+                      
+                      {/* Status Chips */}
+                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        <Chip 
+                          label={order.status.charAt(0).toUpperCase() + order.status.slice(1)} 
+                          color={getStatusChipColor(order.status) as any}
+                          size="small"
+                          sx={{ fontWeight: 'medium' }}
+                        />
+                        <Chip 
+                          label={order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)} 
+                          color={getPaymentStatusChipColor(order.paymentStatus) as any}
+                          size="small"
+                          variant="outlined"
+                        />
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))
+            )}
+          </Grid>
+        ) : (
+          /* Table View */
+          <Paper sx={{ 
+            width: '100%', 
+            overflow: 'hidden',
+            borderRadius: 2,
+            boxShadow: theme => `0 2px 10px ${alpha(theme.palette.primary.main, 0.08)}`
+          }}>
+            <TableContainer sx={{ maxHeight: 'calc(100vh - 400px)' }}>
+              <Table stickyHeader>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: theme => alpha(theme.palette.primary.main, 0.05) }}>
+                    <TableCell sx={{ fontWeight: 'bold', fontSize: '0.875rem' }}>Order #</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', fontSize: '0.875rem' }}>Date</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', fontSize: '0.875rem' }}>Customer</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', fontSize: '0.875rem' }}>Items</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', fontSize: '0.875rem' }}>Total</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', fontSize: '0.875rem' }}>Status</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', fontSize: '0.875rem' }}>Payment</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '0.875rem' }}>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {getPaginatedOrders().length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <ShoppingCartIcon sx={{ fontSize: 64, color: 'text.secondary', opacity: 0.3, mb: 2 }} />
+                          <Typography variant="h6" color="text.secondary" gutterBottom>
+                            No orders found
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Try adjusting your filters or create a new order
+                          </Typography>
+                        </Box>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Paper>
+                  ) : (
+                    getPaginatedOrders().map((order) => (
+                      <TableRow 
+                        key={order.id}
+                        hover
+                        sx={{ 
+                          '&:hover': { 
+                            cursor: 'pointer',
+                            backgroundColor: theme => alpha(theme.palette.primary.main, 0.04)
+                          },
+                          transition: 'background-color 0.2s ease'
+                        }}
+                        onClick={() => handleViewOrder(order.id!)}
+                      >
+                        <TableCell>
+                          <Typography variant="body2" fontWeight="medium" color="primary.main">
+                            #{order.orderNumber}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {formatDate(order.createdAt)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <Avatar sx={{ bgcolor: 'primary.main', width: 24, height: 24, mr: 1 }}>
+                              <PersonIcon sx={{ fontSize: 14 }} />
+                            </Avatar>
+                            <Typography variant="body2" fontWeight="medium">
+                              {order.partyName}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={`${order.items.length} items`}
+                            size="small"
+                            variant="outlined"
+                            sx={{ fontWeight: 'medium' }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight="bold">
+                            {formatCurrency(order.total)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={order.status.charAt(0).toUpperCase() + order.status.slice(1)} 
+                            color={getStatusChipColor(order.status) as any}
+                            size="small"
+                            sx={{ fontWeight: 'medium' }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)} 
+                            color={getPaymentStatusChipColor(order.paymentStatus) as any}
+                            size="small"
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenActionMenu(e, order.id!);
+                            }}
+                            sx={{ 
+                              '&:hover': { 
+                                bgcolor: theme => alpha(theme.palette.primary.main, 0.1) 
+                              } 
+                            }}
+                          >
+                            <MoreVertIcon />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        )}
+        
+        {/* Pagination */}
+        {filteredOrders.length > 0 && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+            <Stack spacing={2}>
+              <Pagination
+                count={Math.ceil(filteredOrders.length / itemsPerPage)}
+                page={page}
+                onChange={handlePageChange}
+                color="primary"
+                size="large"
+                showFirstButton
+                showLastButton
+                sx={{
+                  '& .MuiPaginationItem-root': {
+                    borderRadius: 2
+                  }
+                }}
+              />
+              <Typography variant="body2" color="text.secondary" align="center">
+                Showing {((page - 1) * itemsPerPage) + 1} to {Math.min(page * itemsPerPage, filteredOrders.length)} of {filteredOrders.length} orders
+              </Typography>
+            </Stack>
+          </Box>
+        )}
         
         {/* Action Menu */}
         <Menu

@@ -17,191 +17,76 @@ import {
   Button,
   ListItemIcon,
   ListItemText,
+  Drawer,
+  Backdrop,
   Fab,
   Zoom,
-  Backdrop,
-  Switch,
-  FormControlLabel,
-  Slide,
-  Paper,
-  Stack,
-  Chip
 } from '@mui/material';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
 import { CircularProgress } from '@mui/material';
-import { useTheme, alpha, styled } from '@mui/material/styles';
-import {
-  Menu as MenuIcon,
-  Notifications as NotificationsIcon,
-  Person as PersonIcon,
-  Settings as SettingsIcon,
-  Help as HelpIcon,
-  Logout as LogoutIcon,
-  Close as CloseIcon,
-  DarkMode as DarkModeIcon,
-  LightMode as LightModeIcon,
-  Fullscreen as FullscreenIcon,
-  FullscreenExit as FullscreenExitIcon,
-  Search as SearchIcon,
-  Add as AddIcon,
-  KeyboardArrowUp as KeyboardArrowUpIcon,
-  Refresh as RefreshIcon
-} from '@mui/icons-material';
+import { useTheme, alpha } from '@mui/material/styles';
+import MenuIcon from '@mui/icons-material/Menu';
+import NotificationsIcon from '@mui/icons-material/Notifications';
+import PersonIcon from '@mui/icons-material/Person';
+import SettingsIcon from '@mui/icons-material/Settings';
+import HelpIcon from '@mui/icons-material/Help';
+import LogoutIcon from '@mui/icons-material/Logout';
+import CloseIcon from '@mui/icons-material/Close';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { ModernSidebar } from '@/components/ModernSidebar';
 import { handleLogout } from '@/utils/authRedirects';
 
-// Enhanced constants for layout dimensions
+// Define constants for layout dimensions
 const APPBAR_HEIGHT = 64;
 const APPBAR_HEIGHT_MOBILE = 56;
 const DRAWER_WIDTH = 280;
-const MINI_DRAWER_WIDTH = 80;
-
-// Styled components for enhanced design
-const StyledAppBar = styled(AppBar)(({ theme }) => ({
-  zIndex: theme.zIndex.drawer + 1,
-  backdropFilter: 'blur(20px)',
-  background: theme.palette.mode === 'dark' 
-    ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.9)} 0%, ${alpha(theme.palette.background.default, 0.95)} 100%)`
-    : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.95)} 0%, ${alpha(theme.palette.primary.dark, 0.98)} 100%)`,
-  borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-  boxShadow: theme.palette.mode === 'dark'
-    ? '0 8px 32px rgba(0,0,0,0.3)'
-    : '0 8px 32px rgba(0,0,0,0.1)',
-  transition: theme.transitions.create(['background', 'box-shadow'], {
-    duration: theme.transitions.duration.standard,
-  }),
-}));
-
-const StyledToolbar = styled(Toolbar)(({ theme }) => ({
-  minHeight: APPBAR_HEIGHT,
-  [theme.breakpoints.down('sm')]: {
-    minHeight: APPBAR_HEIGHT_MOBILE,
-  },
-  paddingLeft: theme.spacing(2),
-  paddingRight: theme.spacing(2),
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-}));
-
-const MainContent = styled(Box, {
-  shouldForwardProp: (prop) => prop !== 'drawerOpen' && prop !== 'isMobile' && prop !== 'miniSidebar',
-})<{ drawerOpen: boolean; isMobile: boolean; miniSidebar: boolean }>(({ theme, drawerOpen, isMobile, miniSidebar }) => ({
-  flexGrow: 1,
-  paddingTop: APPBAR_HEIGHT,
-  [theme.breakpoints.down('sm')]: {
-    paddingTop: APPBAR_HEIGHT_MOBILE,
-  },
-  height: '100vh',
-  overflow: 'auto',
-  transition: theme.transitions.create(['margin', 'width'], {
-    easing: theme.transitions.easing.sharp,
-    duration: theme.transitions.duration.leavingScreen,
-  }),
-  width: '100%',
-  background: theme.palette.mode === 'dark' 
-    ? `linear-gradient(135deg, ${alpha(theme.palette.background.default, 0.95)} 0%, ${alpha(theme.palette.background.paper, 0.98)} 100%)`
-    : `linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)`,
-  ...(drawerOpen && !isMobile && {
-    transition: theme.transitions.create(['margin', 'width'], {
-      easing: theme.transitions.easing.easeOut,
-      duration: theme.transitions.duration.enteringScreen,
-    }),
-    width: `calc(100% - ${miniSidebar ? MINI_DRAWER_WIDTH : DRAWER_WIDTH}px)`,
-  }),
-  '&::-webkit-scrollbar': {
-    width: '8px',
-    height: '8px',
-  },
-  '&::-webkit-scrollbar-track': {
-    background: 'transparent',
-  },
-  '&::-webkit-scrollbar-thumb': {
-    background: theme.palette.mode === 'dark'
-      ? alpha(theme.palette.primary.dark, 0.3)
-      : alpha(theme.palette.primary.main, 0.2),
-    borderRadius: '4px',
-    '&:hover': {
-      background: theme.palette.mode === 'dark'
-        ? alpha(theme.palette.primary.dark, 0.5)
-        : alpha(theme.palette.primary.main, 0.3),
-    },
-  },
-}));
-
-const ScrollToTopFab = styled(Fab)(({ theme }) => ({
-  position: 'fixed',
-  bottom: theme.spacing(2),
-  right: theme.spacing(2),
-  zIndex: theme.zIndex.speedDial,
-  background: `linear-gradient(45deg, ${theme.palette.primary.main} 30%, ${theme.palette.secondary.main} 90%)`,
-  '&:hover': {
-    background: `linear-gradient(45deg, ${theme.palette.primary.dark} 30%, ${theme.palette.secondary.dark} 90%)`,
-  },
-}));
+const MINI_DRAWER_WIDTH = 72;
+const MOBILE_BREAKPOINT = 'md';
 
 interface EnhancedDashboardLayoutProps {
   children: ReactNode;
+  title?: string;
+  showBackToTop?: boolean;
+  maxWidth?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | false;
 }
 
-export default function EnhancedDashboardLayout({ children }: EnhancedDashboardLayoutProps) {
+export default function EnhancedDashboardLayout({ 
+  children, 
+  title,
+  showBackToTop = true,
+  maxWidth = false
+}: EnhancedDashboardLayoutProps) {
   const theme = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const { currentUser, userRole, loadingAuth, logout } = useAuth();
   
+  // Responsive breakpoints
+  const isMobile = useMediaQuery(theme.breakpoints.down(MOBILE_BREAKPOINT));
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  
   // State management
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(!isMobile);
   const [miniSidebar, setMiniSidebar] = useState(false);
   const [profileMenuAnchor, setProfileMenuAnchor] = useState<null | HTMLElement>(null);
   const [notificationsAnchor, setNotificationsAnchor] = useState<null | HTMLElement>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showScrollTop, setShowScrollTop] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const [showBackToTopButton, setShowBackToTopButton] = useState(false);
   
-  // Responsive breakpoints
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isTablet = useMediaQuery(theme.breakpoints.between('md', 'lg'));
-  const isDesktop = useMediaQuery(theme.breakpoints.up('lg'));
-  
-  // Mock notifications data with enhanced structure
+  // Mock notifications data
   const [notifications, setNotifications] = useState([
-    { 
-      id: 1, 
-      message: 'New invoice #INV-001 created', 
-      read: false, 
-      time: '2 minutes ago',
-      type: 'invoice',
-      priority: 'high'
-    },
-    { 
-      id: 2, 
-      message: 'Low stock alert: Laptop XPS 15', 
-      read: false, 
-      time: '15 minutes ago',
-      type: 'inventory',
-      priority: 'medium'
-    },
-    { 
-      id: 3, 
-      message: 'Payment received from Acme Corp', 
-      read: true, 
-      time: '1 hour ago',
-      type: 'payment',
-      priority: 'low'
-    },
-    { 
-      id: 4, 
-      message: 'Monthly report is ready', 
-      read: false, 
-      time: '2 hours ago',
-      type: 'report',
-      priority: 'medium'
-    },
+    { id: 1, message: 'New invoice created', read: false, time: '10 minutes ago' },
+    { id: 2, message: 'Low stock alert: Laptop XPS 15', read: false, time: '1 hour ago' },
+    { id: 3, message: 'Payment received from Acme Corp', read: true, time: '3 hours ago' },
   ]);
-
+  
+  // Computed values
+  const profileMenuOpen = Boolean(profileMenuAnchor);
+  const notificationsOpen = Boolean(notificationsAnchor);
+  const unreadNotificationsCount = notifications.filter(n => !n.read).length;
+  const currentAppBarHeight = isMobile ? APPBAR_HEIGHT_MOBILE : APPBAR_HEIGHT;
+  
   // Authentication check
   useEffect(() => {
     if (!loadingAuth) {
@@ -213,85 +98,98 @@ export default function EnhancedDashboardLayout({ children }: EnhancedDashboardL
       }
     }
   }, [currentUser, loadingAuth, router]);
-
-  // Handle responsive drawer behavior
+  
+  // Drawer state management
   useEffect(() => {
+    const savedDrawerState = localStorage.getItem('drawerState');
+    const savedMiniState = localStorage.getItem('miniSidebarState');
+    
     if (isMobile) {
       setDrawerOpen(false);
       setMiniSidebar(false);
     } else {
-      const savedState = localStorage.getItem('drawerState');
-      if (savedState) {
+      if (savedDrawerState) {
         try {
-          const state = JSON.parse(savedState);
+          const state = JSON.parse(savedDrawerState);
           setDrawerOpen(state.open);
-          setMiniSidebar(state.mini || false);
         } catch (e) {
           setDrawerOpen(true);
+        }
+      }
+      
+      if (savedMiniState) {
+        try {
+          const state = JSON.parse(savedMiniState);
+          setMiniSidebar(state.mini);
+        } catch (e) {
           setMiniSidebar(false);
         }
       }
     }
   }, [isMobile]);
-
-  // Handle scroll to top visibility
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-      setShowScrollTop(scrollTop > 300);
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  // Save drawer state
-  const saveDrawerState = useCallback((open: boolean, mini: boolean = false) => {
+  
+  // Save states to localStorage
+  const saveDrawerState = useCallback((isOpen: boolean) => {
     try {
-      localStorage.setItem('drawerState', JSON.stringify({ open, mini }));
+      localStorage.setItem('drawerState', JSON.stringify({ open: isOpen }));
     } catch (e) {
       console.error('Failed to save drawer state:', e);
     }
   }, []);
-
-  // Toggle drawer
+  
+  const saveMiniState = useCallback((isMini: boolean) => {
+    try {
+      localStorage.setItem('miniSidebarState', JSON.stringify({ mini: isMini }));
+    } catch (e) {
+      console.error('Failed to save mini sidebar state:', e);
+    }
+  }, []);
+  
+  // Event handlers
   const toggleDrawer = useCallback(() => {
     if (isMobile) {
-      setDrawerOpen(!drawerOpen);
+      const newState = !drawerOpen;
+      setDrawerOpen(newState);
+      saveDrawerState(newState);
     } else {
       const newMiniState = !miniSidebar;
       setMiniSidebar(newMiniState);
-      setDrawerOpen(true);
-      saveDrawerState(true, newMiniState);
+      saveMiniState(newMiniState);
     }
-  }, [drawerOpen, miniSidebar, isMobile, saveDrawerState]);
-
-  // Close drawer (mobile)
+  }, [isMobile, drawerOpen, miniSidebar, saveDrawerState, saveMiniState]);
+  
   const closeDrawer = useCallback(() => {
     setDrawerOpen(false);
-    if (!isMobile) {
-      saveDrawerState(false, miniSidebar);
-    }
-  }, [isMobile, miniSidebar, saveDrawerState]);
-
-  // Fullscreen toggle
-  const toggleFullscreen = useCallback(() => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
-    }
-  }, []);
-
-  // Scroll to top
-  const scrollToTop = useCallback(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
-
-  // Get user initials
-  const getUserInitials = useCallback(() => {
+    saveDrawerState(false);
+  }, [saveDrawerState]);
+  
+  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setProfileMenuAnchor(event.currentTarget);
+  };
+  
+  const handleProfileMenuClose = () => {
+    setProfileMenuAnchor(null);
+  };
+  
+  const handleNotificationsOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setNotificationsAnchor(event.currentTarget);
+  };
+  
+  const handleNotificationsClose = () => {
+    setNotificationsAnchor(null);
+  };
+  
+  const handleMarkAllAsRead = () => {
+    setNotifications(notifications.map(n => ({ ...n, read: true })));
+    handleNotificationsClose();
+  };
+  
+  const handleUserLogout = () => {
+    handleProfileMenuClose();
+    handleLogout(logout, router);
+  };
+  
+  const getUserInitials = () => {
     if (currentUser?.displayName) {
       return currentUser.displayName
         .split(' ')
@@ -303,54 +201,51 @@ export default function EnhancedDashboardLayout({ children }: EnhancedDashboardL
       return currentUser.email[0].toUpperCase();
     }
     return 'U';
-  }, [currentUser]);
-
-  // Get unread notifications count
-  const unreadNotificationsCount = notifications.filter(n => !n.read).length;
-
-  // Handle notifications
-  const handleMarkAllAsRead = useCallback(() => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
-    setNotificationsAnchor(null);
-  }, [notifications]);
-
-  // Handle logout
-  const handleUserLogout = useCallback(() => {
-    setProfileMenuAnchor(null);
-    handleLogout(logout, router);
-  }, [logout, router]);
-
-  // Quick actions based on user role
-  const getQuickActions = useCallback(() => {
-    const actions = [];
+  };
+  
+  // Back to top functionality
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowBackToTopButton(window.pageYOffset > 300);
+    };
     
-    if (userRole === 'admin' || userRole === 'manager') {
-      actions.push(
-        <Button
-          key="new-invoice"
-          variant="contained"
-          size="small"
-          onClick={() => router.push('/invoices/new')}
-          sx={{
-            bgcolor: alpha(theme.palette.common.white, 0.15),
-            color: 'white',
-            '&:hover': {
-              bgcolor: alpha(theme.palette.common.white, 0.25),
-            },
-            textTransform: 'none',
-            fontWeight: 500,
-            borderRadius: 2,
-          }}
-        >
-          New Invoice
-        </Button>
-      );
+    if (showBackToTop) {
+      window.addEventListener('scroll', handleScroll);
+      return () => window.removeEventListener('scroll', handleScroll);
     }
+  }, [showBackToTop]);
+  
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+  
+  // Route change handler
+  useEffect(() => {
+    if (isMobile) {
+      closeDrawer();
+    }
+  }, [pathname, isMobile, closeDrawer]);
+  
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.key === 'b') {
+        event.preventDefault();
+        toggleDrawer();
+      }
+      if (event.key === 'Escape' && isMobile && drawerOpen) {
+        closeDrawer();
+      }
+    };
     
-    return actions;
-  }, [userRole, router, theme]);
-
-  // Render loading state
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [toggleDrawer, isMobile, drawerOpen, closeDrawer]);
+  
+  // Loading state
   if (loadingAuth) {
     return (
       <Box sx={{ 
@@ -358,35 +253,61 @@ export default function EnhancedDashboardLayout({ children }: EnhancedDashboardL
         justifyContent: 'center', 
         alignItems: 'center', 
         height: '100vh',
-        background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+        bgcolor: theme.palette.background.default
       }}>
-        <Paper elevation={8} sx={{ p: 4, borderRadius: 3, textAlign: 'center' }}>
-          <CircularProgress size={48} sx={{ mb: 2 }} />
-          <Typography variant="h6" color="text.secondary">
-            Loading Dashboard...
-          </Typography>
-        </Paper>
+        <CircularProgress size={60} thickness={4} />
       </Box>
     );
   }
-
+  
+  if (!isAuthenticated) {
+    return null;
+  }
+  
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
       <CssBaseline />
       
       {/* Enhanced App Bar */}
-      <StyledAppBar position="fixed" elevation={0}>
-        <StyledToolbar>
+      <AppBar 
+        position="fixed" 
+        elevation={0}
+        sx={{ 
+          zIndex: theme.zIndex.drawer + 1,
+          backdropFilter: 'blur(20px)',
+          bgcolor: theme.palette.mode === 'dark' 
+            ? alpha(theme.palette.background.paper, 0.8) 
+            : alpha(theme.palette.primary.main, 0.95),
+          borderBottom: '1px solid',
+          borderColor: theme.palette.mode === 'dark'
+            ? alpha(theme.palette.divider, 0.6)
+            : alpha(theme.palette.primary.dark, 0.15),
+          boxShadow: theme.palette.mode === 'dark'
+            ? '0 8px 32px rgba(0,0,0,0.2)'
+            : '0 8px 32px rgba(0,0,0,0.1)',
+          height: currentAppBarHeight,
+          transition: theme.transitions.create(['background-color', 'box-shadow'], {
+            duration: theme.transitions.duration.short,
+          }),
+        }}
+      >
+        <Toolbar sx={{ 
+          minHeight: currentAppBarHeight,
+          px: { xs: 1, sm: 2 },
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Tooltip title={miniSidebar ? "Expand sidebar" : "Toggle sidebar"} arrow>
+            <Tooltip title={`${isMobile ? 'Toggle menu' : 'Toggle sidebar'} (Ctrl+B)`} arrow>
               <IconButton
                 color="inherit"
                 aria-label="toggle drawer"
                 onClick={toggleDrawer}
                 edge="start"
-                size="medium"
+                size={isSmallScreen ? "small" : "medium"}
                 sx={{
-                  mr: 2,
+                  mr: { xs: 1, sm: 2 },
                   bgcolor: alpha(theme.palette.common.white, 0.1),
                   '&:hover': {
                     bgcolor: alpha(theme.palette.common.white, 0.2),
@@ -399,65 +320,91 @@ export default function EnhancedDashboardLayout({ children }: EnhancedDashboardL
               </IconButton>
             </Tooltip>
             
-            <Typography 
-              variant="h6" 
-              noWrap 
-              component="div" 
-              sx={{ 
-                fontWeight: 700,
-                letterSpacing: '0.5px',
-                background: 'linear-gradient(45deg, #fff 30%, #f0f0f0 90%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                display: { xs: 'none', sm: 'block' },
-              }}
-            >
-              MASTERMIND
-            </Typography>
-          </Box>
-          
-          {/* Center section - Search or breadcrumbs could go here */}
-          <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center' }}>
-            {/* You can add a search bar or breadcrumbs here */}
-          </Box>
-          
-          {/* Right side actions */}
-          <Stack direction="row" spacing={1} alignItems="center">
-            {/* Quick Actions */}
-            <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1 }}>
-              {getQuickActions()}
-            </Box>
-            
-            {/* Fullscreen Toggle */}
-            <Tooltip title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
-              <IconButton
-                color="inherit"
-                onClick={toggleFullscreen}
-                sx={{
-                  bgcolor: alpha(theme.palette.common.white, 0.1),
-                  '&:hover': {
-                    bgcolor: alpha(theme.palette.common.white, 0.2),
-                  },
-                  display: { xs: 'none', sm: 'flex' },
+            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+              <Typography 
+                variant={isSmallScreen ? "h6" : "h5"} 
+                noWrap 
+                component="div" 
+                sx={{ 
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
+                  color: theme.palette.common.white,
+                  background: 'linear-gradient(45deg, #fff 30%, #f0f0f0 90%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  lineHeight: 1.2,
                 }}
               >
-                {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
-              </IconButton>
-            </Tooltip>
+                MASTERMIND
+              </Typography>
+              {title && (
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    color: alpha(theme.palette.common.white, 0.8),
+                    fontWeight: 500,
+                    display: { xs: 'none', sm: 'block' }
+                  }}
+                >
+                  {title}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+          
+          {/* Right side of AppBar */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {/* Quick Actions */}
+            {(userRole === 'admin' || userRole === 'manager') && (
+              <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
+                <Button 
+                  variant="contained" 
+                  size="small"
+                  onClick={() => router.push('/invoices/new')}
+                  sx={{ 
+                    bgcolor: alpha(theme.palette.common.white, 0.15),
+                    color: 'white',
+                    '&:hover': {
+                      bgcolor: alpha(theme.palette.common.white, 0.25),
+                      transform: 'translateY(-1px)',
+                    },
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    borderRadius: 2,
+                    transition: 'all 0.2s ease-in-out',
+                  }}
+                >
+                  New Invoice
+                </Button>
+              </Box>
+            )}
             
             {/* Notifications */}
             <Tooltip title="Notifications">
               <IconButton
                 color="inherit"
-                onClick={(e) => setNotificationsAnchor(e.currentTarget)}
+                onClick={handleNotificationsOpen}
+                size={isSmallScreen ? "small" : "medium"}
                 sx={{
                   bgcolor: alpha(theme.palette.common.white, 0.1),
                   '&:hover': {
                     bgcolor: alpha(theme.palette.common.white, 0.2),
+                    transform: 'scale(1.05)',
                   },
+                  transition: 'all 0.2s ease-in-out',
                 }}
               >
-                <Badge badgeContent={unreadNotificationsCount} color="error">
+                <Badge 
+                  badgeContent={unreadNotificationsCount} 
+                  color="error"
+                  sx={{
+                    '& .MuiBadge-badge': {
+                      fontSize: '0.7rem',
+                      minWidth: '18px',
+                      height: '18px',
+                    }
+                  }}
+                >
                   <NotificationsIcon />
                 </Badge>
               </IconButton>
@@ -466,18 +413,21 @@ export default function EnhancedDashboardLayout({ children }: EnhancedDashboardL
             {/* User Profile */}
             <Tooltip title="Account settings">
               <IconButton
-                onClick={(e) => setProfileMenuAnchor(e.currentTarget)}
+                onClick={handleProfileMenuOpen}
+                size={isSmallScreen ? "small" : "medium"}
                 sx={{
                   bgcolor: alpha(theme.palette.common.white, 0.1),
                   '&:hover': {
                     bgcolor: alpha(theme.palette.common.white, 0.2),
+                    transform: 'scale(1.05)',
                   },
+                  transition: 'all 0.2s ease-in-out',
                 }}
               >
                 <Avatar 
                   sx={{ 
-                    width: 32, 
-                    height: 32, 
+                    width: isSmallScreen ? 28 : 32, 
+                    height: isSmallScreen ? 28 : 32, 
                     bgcolor: theme.palette.secondary.main,
                     fontSize: '0.875rem',
                     fontWeight: 600
@@ -488,75 +438,163 @@ export default function EnhancedDashboardLayout({ children }: EnhancedDashboardL
                 </Avatar>
               </IconButton>
             </Tooltip>
-          </Stack>
-        </StyledToolbar>
-      </StyledAppBar>
-
-      {/* Mobile Backdrop */}
+          </Box>
+        </Toolbar>
+      </AppBar>
+      
+      {/* Enhanced Sidebar */}
+      {isMobile ? (
+        <Drawer
+          variant="temporary"
+          anchor="left"
+          open={drawerOpen}
+          onClose={closeDrawer}
+          ModalProps={{
+            keepMounted: true, // Better open performance on mobile
+          }}
+          PaperProps={{
+            sx: {
+              width: DRAWER_WIDTH,
+              border: 'none',
+              boxShadow: theme.shadows[8],
+            }
+          }}
+          sx={{
+            display: { xs: 'block', [MOBILE_BREAKPOINT]: 'none' },
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
+              width: DRAWER_WIDTH,
+            },
+          }}
+        >
+          <ModernSidebar 
+            isOpen={true}
+            onMobileClose={closeDrawer}
+            userName={currentUser?.displayName || currentUser?.email || 'User'}
+            userRole={userRole || 'User'}
+            userAvatar={currentUser?.photoURL || undefined}
+            variant="temporary"
+          />
+        </Drawer>
+      ) : (
+        <Box
+          sx={{
+            width: miniSidebar ? MINI_DRAWER_WIDTH : DRAWER_WIDTH,
+            flexShrink: 0,
+            transition: theme.transitions.create('width', {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.enteringScreen,
+            }),
+          }}
+        >
+          <ModernSidebar 
+            isOpen={!miniSidebar}
+            onToggle={() => setMiniSidebar(!miniSidebar)}
+            userName={currentUser?.displayName || currentUser?.email || 'User'}
+            userRole={userRole || 'User'}
+            userAvatar={currentUser?.photoURL || undefined}
+            variant="permanent"
+          />
+        </Box>
+      )}
+      
+      {/* Mobile backdrop */}
       {isMobile && (
         <Backdrop
           open={drawerOpen}
           onClick={closeDrawer}
-          sx={{ zIndex: theme.zIndex.drawer - 1 }}
+          sx={{ 
+            zIndex: theme.zIndex.drawer - 1,
+            bgcolor: alpha(theme.palette.common.black, 0.5),
+          }}
         />
       )}
       
-      {/* Enhanced Sidebar */}
-      <ModernSidebar 
-        isOpen={drawerOpen}
-        onToggle={toggleDrawer}
-        onMobileClose={closeDrawer}
-        userName={currentUser?.displayName || currentUser?.email || 'User'}
-        userRole={userRole || 'User'}
-        userAvatar={currentUser?.photoURL || undefined}
-      />
-      
-      {/* Main Content Area */}
-      <MainContent 
-        drawerOpen={drawerOpen} 
-        isMobile={isMobile} 
-        miniSidebar={miniSidebar}
+      {/* Main Content */}
+      <Box 
+        component="main" 
+        sx={{ 
+          flexGrow: 1,
+          pt: `${currentAppBarHeight}px`,
+          height: '100vh',
+          overflow: 'auto',
+          bgcolor: theme.palette.mode === 'dark' 
+            ? alpha(theme.palette.background.default, 0.95) 
+            : '#f8f9fa',
+          position: 'relative',
+          '&::-webkit-scrollbar': {
+            width: '8px',
+            height: '8px',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: 'transparent',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: theme.palette.mode === 'dark'
+              ? alpha(theme.palette.primary.dark, 0.3)
+              : alpha(theme.palette.primary.main, 0.2),
+            borderRadius: '4px',
+            '&:hover': {
+              background: theme.palette.mode === 'dark'
+                ? alpha(theme.palette.primary.dark, 0.5)
+                : alpha(theme.palette.primary.main, 0.3),
+            },
+          },
+        }}
       >
+        {/* Content container */}
         <Box 
           sx={{ 
-            maxWidth: '1600px', 
+            maxWidth: maxWidth ? `${theme.breakpoints.values[maxWidth]}px` : 'none',
             width: '100%',
-            mx: 'auto',
-            px: { xs: 2, sm: 3, md: 4 },
-            py: { xs: 2, sm: 3 },
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: `calc(100vh - ${APPBAR_HEIGHT}px)`,
+            mx: maxWidth ? 'auto' : 0,
+            px: { xs: 1, sm: 2, md: 3 },
+            py: { xs: 1, sm: 2 },
+            minHeight: `calc(100vh - ${currentAppBarHeight}px)`,
           }}
         >
           {children}
         </Box>
-      </MainContent>
-
-      {/* Scroll to Top FAB */}
-      <Zoom in={showScrollTop}>
-        <ScrollToTopFab
-          size="medium"
-          onClick={scrollToTop}
-          aria-label="scroll to top"
-        >
-          <KeyboardArrowUpIcon />
-        </ScrollToTopFab>
-      </Zoom>
-
-      {/* Enhanced Notifications Menu */}
+        
+        {/* Back to Top Button */}
+        {showBackToTop && (
+          <Zoom in={showBackToTopButton}>
+            <Fab
+              color="primary"
+              size="small"
+              aria-label="scroll back to top"
+              onClick={scrollToTop}
+              sx={{
+                position: 'fixed',
+                bottom: { xs: 16, sm: 24 },
+                right: { xs: 16, sm: 24 },
+                zIndex: theme.zIndex.speedDial,
+                boxShadow: theme.shadows[6],
+                '&:hover': {
+                  transform: 'scale(1.1)',
+                },
+                transition: 'all 0.2s ease-in-out',
+              }}
+            >
+              <KeyboardArrowUpIcon />
+            </Fab>
+          </Zoom>
+        )}
+      </Box>
+      
+      {/* Notifications Menu */}
       <Menu
         anchorEl={notificationsAnchor}
-        open={Boolean(notificationsAnchor)}
-        onClose={() => setNotificationsAnchor(null)}
+        open={notificationsOpen}
+        onClose={handleNotificationsClose}
         PaperProps={{
           elevation: 8,
           sx: {
             overflow: 'visible',
             filter: 'drop-shadow(0px 4px 12px rgba(0,0,0,0.15))',
             mt: 1.5,
-            width: 360,
-            maxHeight: 480,
+            width: { xs: 300, sm: 360 },
+            maxHeight: 400,
             borderRadius: 2,
             '&:before': {
               content: '""',
@@ -575,61 +613,43 @@ export default function EnhancedDashboardLayout({ children }: EnhancedDashboardL
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
-        <Box sx={{ px: 3, py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6" fontWeight={600}>
-            Notifications
-          </Typography>
+        <Box sx={{ px: 2, py: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="subtitle1" fontWeight={600}>Notifications</Typography>
           <Button 
             size="small" 
             onClick={handleMarkAllAsRead}
             disabled={unreadNotificationsCount === 0}
+            sx={{ textTransform: 'none' }}
           >
             Mark all as read
           </Button>
         </Box>
         <Divider />
-        
         {notifications.length === 0 ? (
-          <Box sx={{ py: 4, px: 3, textAlign: 'center' }}>
-            <NotificationsIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
-            <Typography variant="body2" color="text.secondary">
-              No notifications
-            </Typography>
+          <Box sx={{ py: 3, px: 2, textAlign: 'center' }}>
+            <Typography variant="body2" color="text.secondary">No notifications</Typography>
           </Box>
         ) : (
           notifications.map((notification) => (
             <MenuItem 
               key={notification.id} 
-              onClick={() => setNotificationsAnchor(null)}
+              onClick={handleNotificationsClose}
               sx={{ 
-                py: 2, 
-                px: 3,
+                py: 1.5, 
+                px: 2,
                 borderLeft: notification.read ? 'none' : `4px solid ${theme.palette.primary.main}`,
                 bgcolor: notification.read ? 'transparent' : alpha(theme.palette.primary.main, 0.05),
                 '&:hover': {
-                  bgcolor: alpha(theme.palette.primary.main, 0.08),
+                  bgcolor: notification.read 
+                    ? alpha(theme.palette.action.hover, 0.5)
+                    : alpha(theme.palette.primary.main, 0.1),
                 },
               }}
             >
               <Box sx={{ width: '100%' }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
-                  <Typography 
-                    variant="body2" 
-                    fontWeight={notification.read ? 400 : 600}
-                    sx={{ flexGrow: 1, mr: 1 }}
-                  >
-                    {notification.message}
-                  </Typography>
-                  <Chip 
-                    label={notification.priority} 
-                    size="small" 
-                    color={
-                      notification.priority === 'high' ? 'error' :
-                      notification.priority === 'medium' ? 'warning' : 'default'
-                    }
-                    sx={{ fontSize: '0.7rem', height: 20 }}
-                  />
-                </Box>
+                <Typography variant="body2" fontWeight={notification.read ? 400 : 600}>
+                  {notification.message}
+                </Typography>
                 <Typography variant="caption" color="text.secondary">
                   {notification.time}
                 </Typography>
@@ -637,30 +657,29 @@ export default function EnhancedDashboardLayout({ children }: EnhancedDashboardL
             </MenuItem>
           ))
         )}
-        
         <Divider />
         <MenuItem onClick={() => {
-          setNotificationsAnchor(null);
+          handleNotificationsClose();
           router.push('/notifications');
         }}>
-          <Typography variant="body2" color="primary" sx={{ width: '100%', textAlign: 'center', py: 1 }}>
+          <Typography variant="body2" color="primary" sx={{ width: '100%', textAlign: 'center', fontWeight: 500 }}>
             View all notifications
           </Typography>
         </MenuItem>
       </Menu>
       
-      {/* Enhanced User Profile Menu */}
+      {/* User Profile Menu */}
       <Menu
         anchorEl={profileMenuAnchor}
-        open={Boolean(profileMenuAnchor)}
-        onClose={() => setProfileMenuAnchor(null)}
+        open={profileMenuOpen}
+        onClose={handleProfileMenuClose}
         PaperProps={{
           elevation: 8,
           sx: {
             overflow: 'visible',
             filter: 'drop-shadow(0px 4px 12px rgba(0,0,0,0.15))',
             mt: 1.5,
-            width: 280,
+            width: 240,
             borderRadius: 2,
             '&:before': {
               content: '""',
@@ -679,31 +698,17 @@ export default function EnhancedDashboardLayout({ children }: EnhancedDashboardL
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
-        <Box sx={{ px: 3, py: 2, display: 'flex', alignItems: 'center' }}>
-          <Avatar 
-            sx={{ 
-              width: 48, 
-              height: 48, 
-              bgcolor: theme.palette.primary.main,
-              mr: 2
-            }}
-            src={currentUser?.photoURL || undefined}
-          >
-            {getUserInitials()}
-          </Avatar>
-          <Box>
-            <Typography variant="subtitle1" fontWeight={600}>
-              {currentUser?.displayName || currentUser?.email || 'User'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {userRole?.charAt(0).toUpperCase() + userRole?.slice(1) || 'User'}
-            </Typography>
-          </Box>
+        <Box sx={{ px: 2, py: 1.5 }}>
+          <Typography variant="subtitle1" fontWeight={600} noWrap>
+            {currentUser?.displayName || currentUser?.email || 'User'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" noWrap>
+            {userRole?.charAt(0).toUpperCase() + userRole?.slice(1) || 'User'}
+          </Typography>
         </Box>
         <Divider />
-        
         <MenuItem onClick={() => {
-          setProfileMenuAnchor(null);
+          handleProfileMenuClose();
           router.push('/profile');
         }}>
           <ListItemIcon>
@@ -711,9 +716,8 @@ export default function EnhancedDashboardLayout({ children }: EnhancedDashboardL
           </ListItemIcon>
           <ListItemText>My Profile</ListItemText>
         </MenuItem>
-        
         <MenuItem onClick={() => {
-          setProfileMenuAnchor(null);
+          handleProfileMenuClose();
           router.push('/settings');
         }}>
           <ListItemIcon>
@@ -721,9 +725,8 @@ export default function EnhancedDashboardLayout({ children }: EnhancedDashboardL
           </ListItemIcon>
           <ListItemText>Settings</ListItemText>
         </MenuItem>
-        
         <MenuItem onClick={() => {
-          setProfileMenuAnchor(null);
+          handleProfileMenuClose();
           router.push('/help');
         }}>
           <ListItemIcon>
@@ -731,9 +734,7 @@ export default function EnhancedDashboardLayout({ children }: EnhancedDashboardL
           </ListItemIcon>
           <ListItemText>Help & Support</ListItemText>
         </MenuItem>
-        
         <Divider />
-        
         <MenuItem onClick={handleUserLogout}>
           <ListItemIcon>
             <LogoutIcon fontSize="small" />

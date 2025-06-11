@@ -47,8 +47,9 @@ import Link from "next/link";
 
 // Constants
 const DRAWER_WIDTH = 280;
-const MINI_DRAWER_WIDTH = 80;
+const MINI_DRAWER_WIDTH = 72;
 const ANIMATION_DURATION = 300;
+const MOBILE_BREAKPOINT = 'md';
 
 // Enhanced Types
 interface NavItem {
@@ -81,6 +82,10 @@ interface ModernSidebarProps {
   isLoading?: boolean;
   customSections?: NavSection[];
   onNavigate?: (path: string) => void;
+  variant?: 'permanent' | 'temporary' | 'persistent';
+  anchor?: 'left' | 'right';
+  elevation?: number;
+  PaperProps?: object;
 }
 
 // Animation variants
@@ -120,19 +125,25 @@ const ModernSidebar: React.FC<ModernSidebarProps> = React.memo(({
   isLoading = false,
   customSections,
   onNavigate,
+  variant = 'permanent',
+  anchor = 'left',
+  elevation = 0,
+  PaperProps = {},
 }) => {
   const router = useRouter();
   const pathname = usePathname();
   const theme = useTheme();
 
   // Responsive breakpoints
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isMobile = useMediaQuery(theme.breakpoints.down(MOBILE_BREAKPOINT));
   const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
   // State management
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [miniSidebar, setMiniSidebar] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+  const [isHovering, setIsHovering] = useState(false);
 
   // Default navigation sections
   const defaultNavigationSections: NavSection[] = useMemo(() => [
@@ -291,6 +302,22 @@ const ModernSidebar: React.FC<ModernSidebarProps> = React.memo(({
     }
   }, [isMobile]);
 
+  // Handle hover expand for mini sidebar
+  const handleMouseEnter = useCallback(() => {
+    if (miniSidebar && !isMobile) {
+      setIsHovering(true);
+    }
+  }, [miniSidebar, isMobile]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (miniSidebar && !isMobile) {
+      setIsHovering(false);
+    }
+  }, [miniSidebar, isMobile]);
+
+  // Determine if sidebar should be expanded
+  const shouldExpand = !miniSidebar || (miniSidebar && isHovering);
+
   // Auto-expand active sections
   useEffect(() => {
     navigationSections.forEach(section => {
@@ -329,14 +356,14 @@ const ModernSidebar: React.FC<ModernSidebarProps> = React.memo(({
       false;
     
     const isExpanded = expandedSections[item.id];
-    const shouldExpand = isExpanded || isItemSectionActive;
-    const isClickableLink = item.path && item.path !== '#' && (!item.children || miniSidebar);
+    const shouldExpandSection = isExpanded || isItemSectionActive;
+    const isClickableLink = item.path && item.path !== '#' && (!item.children || !shouldExpand);
     const isHovered = hoveredItem === item.id;
 
     const listItemButton = (
       <ListItemButton
         onClick={() => {
-          if (item.children && !miniSidebar) {
+          if (item.children && shouldExpand) {
             handleSectionToggle(item.id);
           } else if (isClickableLink && !item.isDisabled) {
             handleNavigation(item.path);
@@ -350,9 +377,9 @@ const ModernSidebar: React.FC<ModernSidebarProps> = React.memo(({
           minHeight: 48,
           px: 2.5,
           borderRadius: '12px',
-          justifyContent: miniSidebar ? 'center' : 'initial',
+          justifyContent: shouldExpand ? 'initial' : 'center',
           transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-          transform: isHovered && !miniSidebar ? 'translateX(4px)' : 'translateX(0)',
+          transform: isHovered && shouldExpand ? 'translateX(4px)' : 'translateX(0)',
           '&.Mui-selected': {
             bgcolor: theme.palette.mode === 'dark'
               ? `rgba(255, 255, 255, 0.08)`
@@ -385,7 +412,7 @@ const ModernSidebar: React.FC<ModernSidebarProps> = React.memo(({
         <ListItemIcon
           sx={{
             minWidth: 0,
-            mr: miniSidebar ? 0 : 2,
+            mr: shouldExpand ? 2 : 0,
             justifyContent: 'center',
             color: isItemActive || isItemSectionActive
               ? theme.palette.primary.main
@@ -413,7 +440,7 @@ const ModernSidebar: React.FC<ModernSidebarProps> = React.memo(({
         </ListItemIcon>
         
         <AnimatePresence>
-          {!miniSidebar && (
+          {shouldExpand && (
             <motion.div
               initial={{ opacity: 0, width: 0 }}
               animate={{ opacity: 1, width: 'auto' }}
@@ -453,7 +480,7 @@ const ModernSidebar: React.FC<ModernSidebarProps> = React.memo(({
                     )}
                   </Box>
                 }
-                secondary={!miniSidebar && item.description ? (
+                secondary={shouldExpand && item.description ? (
                   <Typography
                     variant="caption"
                     color="text.secondary"
@@ -473,12 +500,12 @@ const ModernSidebar: React.FC<ModernSidebarProps> = React.memo(({
           )}
         </AnimatePresence>
         
-        {!miniSidebar && item.children && (
+        {shouldExpand && item.children && (
           <motion.div
-            animate={{ rotate: shouldExpand ? 180 : 0 }}
+            animate={{ rotate: shouldExpandSection ? 180 : 0 }}
             transition={{ duration: 0.2 }}
           >
-            {shouldExpand ? <ExpandLess /> : <ExpandMore />}
+            {shouldExpandSection ? <ExpandLess /> : <ExpandMore />}
           </motion.div>
         )}
       </ListItemButton>
@@ -493,7 +520,7 @@ const ModernSidebar: React.FC<ModernSidebarProps> = React.memo(({
       >
         <ListItem disablePadding sx={{ display: 'block', mb: 0.5 }}>
           <Tooltip 
-            title={miniSidebar ? `${item.title}${item.description ? ` - ${item.description}` : ''}` : ""} 
+            title={!shouldExpand ? `${item.title}${item.description ? ` - ${item.description}` : ''}` : ""} 
             placement="right" 
             arrow
             enterDelay={500}
@@ -510,8 +537,8 @@ const ModernSidebar: React.FC<ModernSidebarProps> = React.memo(({
           </Tooltip>
         </ListItem>
         
-        {item.children && !miniSidebar && (
-          <Collapse in={shouldExpand} timeout="auto" unmountOnExit>
+        {item.children && shouldExpand && (
+          <Collapse in={shouldExpandSection} timeout="auto" unmountOnExit>
             <List component="div" disablePadding>
               {item.children.map(child => (
                 <motion.div
@@ -630,11 +657,13 @@ const ModernSidebar: React.FC<ModernSidebarProps> = React.memo(({
     <Box
       component={motion.div}
       variants={sidebarVariants}
-      animate={miniSidebar ? "closed" : "open"}
+      animate={shouldExpand ? "open" : "closed"}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       sx={{
         width: {
           xs: isOpen ? '100%' : 0,
-          md: miniSidebar ? MINI_DRAWER_WIDTH : DRAWER_WIDTH,
+          [MOBILE_BREAKPOINT]: shouldExpand ? DRAWER_WIDTH : MINI_DRAWER_WIDTH,
         },
         flexShrink: 0,
         whiteSpace: 'nowrap',
@@ -648,9 +677,13 @@ const ModernSidebar: React.FC<ModernSidebarProps> = React.memo(({
           ? theme.palette.background.default
           : theme.palette.background.paper,
         borderRight: `1px solid ${theme.palette.divider}`,
-        display: { xs: isOpen ? 'block' : 'none', md: 'block' },
-        position: { xs: 'fixed', md: 'relative' },
-        zIndex: { xs: theme.zIndex.drawer, md: 'auto' },
+        display: { xs: isOpen ? 'block' : 'none', [MOBILE_BREAKPOINT]: 'block' },
+        position: { xs: 'fixed', [MOBILE_BREAKPOINT]: 'relative' },
+        zIndex: { xs: theme.zIndex.drawer, [MOBILE_BREAKPOINT]: 'auto' },
+        transition: theme.transitions.create(['width'], {
+          easing: theme.transitions.easing.sharp,
+          duration: theme.transitions.duration.enteringScreen,
+        }),
       }}
       role="navigation"
       aria-label="Main navigation"
@@ -660,14 +693,14 @@ const ModernSidebar: React.FC<ModernSidebarProps> = React.memo(({
         sx={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: miniSidebar ? 'center' : 'space-between',
-          padding: miniSidebar ? 1 : 2,
+          justifyContent: shouldExpand ? 'space-between' : 'center',
+          padding: shouldExpand ? 2 : 1,
           height: 64,
           borderBottom: `1px solid ${theme.palette.divider}`,
         }}
       >
         <AnimatePresence>
-          {!miniSidebar && (
+          {shouldExpand && (
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -718,7 +751,7 @@ const ModernSidebar: React.FC<ModernSidebarProps> = React.memo(({
 
       {/* User profile section */}
       <AnimatePresence>
-        {!miniSidebar && (
+        {shouldExpand && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
@@ -776,9 +809,9 @@ const ModernSidebar: React.FC<ModernSidebarProps> = React.memo(({
         sx={{
           overflowY: 'auto',
           overflowX: 'hidden',
-          height: miniSidebar 
-            ? 'calc(100vh - 64px)' 
-            : 'calc(100vh - 64px - 73px)',
+          height: shouldExpand 
+            ? 'calc(100vh - 64px - 73px)'
+            : 'calc(100vh - 64px)',
           '&::-webkit-scrollbar': {
             width: '6px',
           },
@@ -812,7 +845,7 @@ const ModernSidebar: React.FC<ModernSidebarProps> = React.memo(({
               )}
               
               <AnimatePresence>
-                {!miniSidebar && (
+                {shouldExpand && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
