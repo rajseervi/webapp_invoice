@@ -1,0 +1,11 @@
+"use client";
+import DataQualityDashboard from '@/components/Reports/DataQualityDashboard';
+import ImprovedDashboardLayout from '@/components/DashboardLayout/ImprovedDashboardLayout';
+
+export default function DataQualityPage() {
+  return (
+    <ImprovedDashboardLayout>
+      <DataQualityDashboard />
+    </ImprovedDashboardLayout>
+  );
+}

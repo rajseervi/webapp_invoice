@@ -1,0 +1,306 @@
+/* 
+ * Global print styles for A4 single-page optimization
+ * Optimized for invoices and documents
+ */
+
+@page {
+  size: A4 portrait;
+  margin: 15mm 12mm 15mm 12mm;
+  -webkit-print-color-adjust: exact;
+  color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+@media print {
+  /* Reset all elements for print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    box-sizing: border-box !important;
+  }
+  
+  /* Body optimization */
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 9px !important;
+    line-height: 1.1 !important;
+    color: #000 !important;
+    background: white !important;
+    overflow: hidden !important;
+  }
+  
+  /* Hide non-print elements */
+  .no-print,
+  .print-hide,
+  .MuiDrawer-root,
+  .MuiAppBar-root,
+  .MuiBottomNavigation-root,
+  .MuiSpeedDial-root,
+  .MuiFab-root,
+  nav,
+  [role="navigation"],
+  header[role="banner"],
+  footer[role="contentinfo"] {
+    display: none !important;
+  }
+  
+  /* Container optimization */
+  .MuiContainer-root {
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+  
+  .MuiPaper-root {
+    box-shadow: none !important;
+    elevation: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+  
+  /* Single page fitting */
+  .print-fit-page {
+    max-height: 267mm !important;
+    overflow: hidden !important;
+    transform-origin: top left !important;
+  }
+  
+  .print-scale-container {
+    transform-origin: top left !important;
+    width: 100% !important;
+    max-height: 267mm !important;
+    overflow: hidden !important;
+  }
+  
+  /* Auto-scaling elements */
+  .auto-scale {
+    transform: scale(var(--scale-factor, 1)) !important;
+    transform-origin: top left !important;
+  }
+  
+  /* Prevent page breaks */
+  .print-no-break,
+  .invoice-section,
+  .tally-template,
+  .print-optimize {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  
+  /* Table optimization */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    font-size: 8px !important;
+    line-height: 1.1 !important;
+  }
+  
+  th, td {
+    padding: 2px 3px !important;
+    border: 1px solid #000 !important;
+    font-size: 8px !important;
+    line-height: 1.1 !important;
+    vertical-align: top !important;
+  }
+  
+  th {
+    background: #f0f0f0 !important;
+    font-weight: bold !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* Typography optimization */
+  h1, h2, h3, h4, h5, h6 {
+    margin: 0 0 2px 0 !important;
+    line-height: 1.1 !important;
+  }
+  
+  h1 { font-size: 16px !important; }
+  h2 { font-size: 14px !important; }
+  h3 { font-size: 12px !important; }
+  h4 { font-size: 10px !important; }
+  h5 { font-size: 9px !important; }
+  h6 { font-size: 8px !important; }
+  
+  p {
+    margin: 0 0 1px 0 !important;
+    font-size: 9px !important;
+    line-height: 1.1 !important;
+  }
+  
+  /* Material-UI component optimization */
+  .MuiTypography-root {
+    margin-bottom: 1px !important;
+  }
+  
+  .MuiBox-root {
+    margin-bottom: 1px !important;
+  }
+  
+  .MuiGrid-item {
+    padding: 1px !important;
+  }
+  
+  /* Page break controls */
+  .print-page-break {
+    display: block !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Force single page mode */
+  .force-single-page {
+    max-height: 250mm !important;
+    overflow: hidden !important;
+    transform: scale(0.8) !important;
+    transform-origin: top left !important;
+  }
+  
+  .force-single-page * {
+    font-size: 7px !important;
+    line-height: 1.05 !important;
+    padding: 1px 2px !important;
+    margin: 0 !important;
+  }
+  
+  .force-single-page table {
+    font-size: 6px !important;
+  }
+  
+  .force-single-page th,
+  .force-single-page td {
+    padding: 1px !important;
+    font-size: 6px !important;
+  }
+  
+  /* Compact mode */
+  .print-compact {
+    font-size: 8px !important;
+    line-height: 1.05 !important;
+  }
+  
+  .print-compact table {
+    font-size: 7px !important;
+  }
+  
+  .print-compact th,
+  .print-compact td {
+    padding: 1px 2px !important;
+    font-size: 7px !important;
+  }
+  
+  /* Invoice-specific styles */
+  .tally-template {
+    font-family: 'Times New Roman', serif !important;
+    color: #000 !important;
+    line-height: 1.1 !important;
+    font-size: 9px !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  .tally-border {
+    border: 2px solid #000 !important;
+  }
+  
+  .tally-header {
+    border-bottom: 2px solid #000 !important;
+    text-align: center !important;
+    padding: 2px 0 !important;
+    margin-bottom: 1px !important;
+  }
+  
+  .tally-section-border {
+    border: 1px solid #000 !important;
+  }
+  
+  /* Color adjustments for print */
+  .tally-total-row {
+    background: #f8f8f8 !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  .tally-grand-total {
+    background: #e8e8e8 !important;
+    border: 2px solid #000 !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* Signature and footer sections */
+  .tally-signature-section {
+    border-top: 1px solid #000 !important;
+    margin-top: 4px !important;
+    padding-top: 4px !important;
+  }
+  
+  .tally-footer-text {
+    font-size: 7px !important;
+    text-align: center !important;
+    font-style: italic !important;
+    margin-top: 2px !important;
+    border-top: 1px solid #000 !important;
+    padding-top: 2px !important;
+  }
+  
+  /* Browser-specific fixes */
+  @supports (-webkit-appearance: none) {
+    /* WebKit/Safari specific fixes */
+    body {
+      -webkit-print-color-adjust: exact !important;
+    }
+  }
+  
+  @supports (-moz-appearance: none) {
+    /* Firefox specific fixes */
+    body {
+      color-adjust: exact !important;
+    }
+  }
+  
+  /* Responsive print scaling */
+  @media print and (max-height: 297mm) {
+    .responsive-print {
+      transform: scale(0.95) !important;
+    }
+  }
+  
+  @media print and (max-height: 250mm) {
+    .responsive-print {
+      transform: scale(0.85) !important;
+    }
+  }
+  
+  @media print and (max-height: 200mm) {
+    .responsive-print {
+      transform: scale(0.75) !important;
+    }
+  }
+}
+
+/* Print preview styles (screen) */
+@media screen {
+  .print-preview {
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    max-width: 210mm;
+    min-height: 297mm;
+    background: white;
+    margin: 0 auto;
+  }
+}

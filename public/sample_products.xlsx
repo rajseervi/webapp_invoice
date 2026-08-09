@@ -1,0 +1,6 @@
+Product Name,Category,Price,Description,SKU,Stock Quantity,Unit,Minimum Stock Level,Maximum Stock Level
+Laptop Pro X1,Electronics,1299.99,"High-performance laptop with SSD",LAP001,50,pieces,5,100
+Wireless Mouse,Electronics,29.99,"Ergonomic wireless mouse",MOU001,200,pieces,20,300
+Office Chair,Furniture,199.99,"Comfortable ergonomic office chair",CHR001,30,pieces,5,50
+Printer Paper A4,Office Supplies,12.99,"500 sheets of A4 paper",PAP001,1000,pieces,100,2000
+USB-C Cable,Electronics,19.99,"Fast charging USB-C cable",USB001,150,pieces,15,250

@@ -1,0 +1,332 @@
+"use client";
+import React from 'react';
+import ModernDashboardLayout from '@/components/ModernLayout/ModernDashboardLayout';
+import ModernThemeProvider from '@/contexts/ModernThemeContext';
+import { Button, Stack } from '@mui/material';
+import { Add as AddIcon, Download as DownloadIcon } from '@mui/icons-material';
+
+"use client"
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import ImprovedDashboardLayout from '@/components/DashboardLayout/ImprovedDashboardLayout';
+import PageHeader from '@/components/PageHeader/PageHeader';
+import ExcelImportExport from '@/components/products/ExcelImportExport';
+import ExportAllProducts from '@/components/products/ExportAllProducts';
+import ExportSelectedProducts from '@/components/products/ExportSelectedProducts';
+import {
+  Container,
+  Typography,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TablePagination,
+  Button,
+  Box,
+  TextField,
+  IconButton,
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  CircularProgress,
+  Alert,
+  Checkbox,
+  Grid,
+  Slider,
+  Snackbar
+} from '@mui/material';
+import { RemoveDuplicatesButton } from '@/components/Common/RemoveDuplicatesButton';
+import {
+  Add as AddIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Search as SearchIcon,
+  FilterList as FilterListIcon,
+  Clear as ClearIcon
+} from '@mui/icons-material'; 
+import { productService, ProductFilters, ProductSortOptions, PaginationOptions } from '@/services/productService';
+import { Product, Category } from '@/types/inventory';
+import { categoryService } from '@/services/categoryService';
+
+function ProductsPage() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'low-stock'>('all');
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
+  const [stockRange, setStockRange] = useState<[number, number]>([0, 1000]);
+  const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10000);
+  const [totalCount, setTotalCount] = useState(0);
+  const [lastVisible, setLastVisible] = useState<any>(null);
+
+  type SortField = 'name' | 'price' | 'quantity' | 'createdAt';
+  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const [openDialog, setOpenDialog] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [newProductData, setNewProductData] = useState<Partial<Product>>({});
+  const [selectedProductsSet, setSelectedProductsSet] = useState<Set<string>>(new Set());
+  const selectedProducts = useMemo(() => Array.from(selectedProductsSet), [selectedProductsSet]);
+  const [bulkCategoryDialogOpen, setBulkCategoryDialogOpen] = useState(false);
+  const [selectedBulkCategory, setSelectedBulkCategory] = useState('');
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning'; }>({ open: false, message: '', severity: 'success' });
+
+  const searchDebounceTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      const categoriesData = await categoryService.getCategories();
+      setCategories(categoriesData);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+      setSnackbar({ open: true, message: 'Failed to fetch categories.', severity: 'error' });
+    }
+  }, []);
+
+  const fetchData = useCallback(async (resetPagination = false) => {
+    setLoading(true);
+    setError(null);
+
+    const currentPage = resetPagination ? 0 : page;
+    if (resetPagination) {
+      setPage(0);
+    }
+
+    try {
+      const filters: ProductFilters = {
+        searchTerm: searchTerm || undefined,
+        category: categoryFilter || undefined,
+        status: statusFilter,
+        priceRange: priceRange[0] > 0 || priceRange[1] < 10000 ? priceRange : undefined,
+        stockRange: stockRange[0] > 0 || stockRange[1] < 1000 ? stockRange : undefined,
+      };
+
+      const sortOptions: ProductSortOptions = { field: sortField, direction: sortDirection };
+      const paginationOptions: PaginationOptions = { page: currentPage, limit: rowsPerPage, lastVisible: resetPagination ? undefined : lastVisible };
+
+      const response = await productService.getProducts(filters, sortOptions, paginationOptions);
+      
+      setProducts(response.products);
+      setTotalCount(response.totalCount); 
+      setLastVisible(response.lastVisible);
+    } catch (err) {
+      console.error('Error fetching products:', err);
+      setError('Failed to fetch products. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, rowsPerPage, searchTerm, categoryFilter, statusFilter, priceRange, stockRange, sortField, sortDirection, lastVisible]);
+
+  useEffect(() => {
+    fetchCategories();
+    const savedRowsPerPage = localStorage.getItem('productsRowsPerPage');
+    if (savedRowsPerPage) setRowsPerPage(parseInt(savedRowsPerPage, 10));
+  }, [fetchCategories]);
+
+  useEffect(() => {
+    if (searchDebounceTimeout.current) clearTimeout(searchDebounceTimeout.current);
+    searchDebounceTimeout.current = setTimeout(() => {
+      fetchData(true);
+    }, 500);
+    return () => { if (searchDebounceTimeout.current) clearTimeout(searchDebounceTimeout.current) };
+  }, [searchTerm, categoryFilter, statusFilter, priceRange, stockRange, sortField, sortDirection, rowsPerPage]);
+
+  useEffect(() => {
+    if (page > 0) fetchData(false);
+  }, [page]);
+
+  const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(event.target.value);
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setCategoryFilter('');
+    setStatusFilter('all');
+    setPriceRange([0, 10000]);
+    setStockRange([0, 1000]);
+    setAdvancedSearchOpen(false);
+  };
+  const handleChangePage = (event: unknown, newPage: number) => setPage(newPage);
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+    localStorage.setItem('productsRowsPerPage', event.target.value);
+  };
+  const handleSort = (field: SortField) => {
+    setSortDirection(sortField === field && sortDirection === 'asc' ? 'desc' : 'asc');
+    setSortField(field);
+  };
+  const handleAddProduct = () => { setSelectedProduct(null); setNewProductData({}); setOpenDialog(true); };
+  const handleEditProduct = (product: Product) => { setSelectedProduct(product); setNewProductData(product); setOpenDialog(true); };
+  const handleCloseDialog = () => setOpenDialog(false);
+
+  const handleSaveProduct = async () => {
+    if (!newProductData.name || !newProductData.categoryId || newProductData.price === undefined || newProductData.quantity === undefined) {
+        setSnackbar({ open: true, message: 'Please fill all required fields.', severity: 'error' });
+        return;
+    }
+    setLoading(true);
+    try {
+      if (selectedProduct?.id) {
+        await productService.updateProduct(selectedProduct.id, newProductData);
+        setSnackbar({ open: true, message: 'Product updated successfully!', severity: 'success' });
+      } else {
+        await productService.createProduct(newProductData as Omit<Product, 'id' | 'createdAt' | 'updatedAt'>);
+        setSnackbar({ open: true, message: 'Product created successfully!', severity: 'success' });
+      }
+      setOpenDialog(false);
+      fetchData(true);
+    } catch (err) {
+      console.error('Error saving product:', err);
+      setSnackbar({ open: true, message: 'Failed to save product.', severity: 'error' });
+    } finally { setLoading(false); }
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if (window.confirm('Are you sure?')) {
+      setLoading(true);
+      try {
+        await productService.deleteProduct(id);
+        setSnackbar({ open: true, message: 'Product deleted.', severity: 'success' });
+        fetchData(true);
+      } catch (err) {
+        console.error('Error deleting product:', err);
+        setSnackbar({ open: true, message: 'Failed to delete product.', severity: 'error' });
+      } finally { setLoading(false); }
+    }
+  };
+  
+  const handleBulkCategoryChange = async () => {
+    if (!selectedBulkCategory || selectedProducts.length === 0) return;
+    setLoading(true);
+    try {
+        await productService.bulkUpdateProducts(selectedProducts, { categoryId: selectedBulkCategory });
+        setSnackbar({ open: true, message: 'Products updated.', severity: 'success' });
+        fetchData(true);
+        setSelectedProductsSet(new Set());
+        setBulkCategoryDialogOpen(false);
+    } catch (err) {
+        console.error('Error updating categories:', err);
+        setSnackbar({ open: true, message: 'Failed to update categories.', severity: 'error' });
+    } finally { setLoading(false); }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+    const { name, value } = e.target;
+    setNewProductData({ ...newProductData, [name as string]: value });
+  };
+  
+  const handleSelectAllClick = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.checked) {
+      setSelectedProductsSet(new Set(products.map((n) => n.id!)));
+    } else {
+      setSelectedProductsSet(new Set());
+    }
+  };
+
+  const handleSelectClick = (id: string) => {
+    const newSelecteds = new Set(selectedProductsSet);
+    if (newSelecteds.has(id)) newSelecteds.delete(id);
+    else newSelecteds.add(id);
+    setSelectedProductsSet(newSelecteds);
+  };
+
+  const productsWithCategoryData = useMemo(() => {
+    return products.map(p => ({
+        ...p,
+        categoryName: categories.find(c => c.id === p.categoryId)?.name || 'N/A',
+        status: p.isActive ? (p.quantity < (p.reorderPoint || 10) ? 'Low Stock' : 'In Stock') : 'Inactive',
+    }));
+  }, [products, categories]);
+
+  return (
+    <ImprovedDashboardLayout>
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <PageHeader title="Products" />
+        <Box sx={{ display: 'flex', gap: 2, mt: 2, mb: 2, flexWrap: 'wrap' }}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddProduct}>Add Product</Button>
+          <ExcelImportExport onSuccess={() => fetchData(true)} />
+          <ExportAllProducts />
+          <RemoveDuplicatesButton onSuccess={() => fetchData(true)} />
+        </Box>
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={4}><TextField label="Search Products" variant="outlined" size="small" fullWidth value={searchTerm} onChange={handleSearch} InputProps={{ startAdornment: <SearchIcon sx={{ mr: 1 }} />, endAdornment: <>{loading && <CircularProgress size={20} />}{searchTerm && <IconButton size="small" onClick={() => setSearchTerm('')}><ClearIcon fontSize="small" /></IconButton>}</> }} /></Grid>
+            <Grid item xs={12} md={2}><FormControl variant="outlined" size="small" fullWidth><InputLabel>Category</InputLabel><Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} label="Category"><MenuItem value=""><em>All</em></MenuItem>{categories.map((c) => (<MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>))}</Select></FormControl></Grid>
+            <Grid item xs={12} md={2}><FormControl variant="outlined" size="small" fullWidth><InputLabel>Status</InputLabel><Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} label="Status"><MenuItem value="all">All</MenuItem><MenuItem value="active">Active</MenuItem><MenuItem value="inactive">Inactive</MenuItem><MenuItem value="low-stock">Low Stock</MenuItem></Select></FormControl></Grid>
+            <Grid item xs={12} md={2}><Button variant="outlined" onClick={() => setAdvancedSearchOpen(!advancedSearchOpen)} startIcon={<FilterListIcon />}>Filters</Button></Grid>
+            <Grid item xs={12} md={2}><Button variant="text" onClick={handleClearFilters} startIcon={<ClearIcon />}>Clear</Button></Grid>
+          </Grid>
+          {advancedSearchOpen && (<Box sx={{ p: 2, mt: 2, bgcolor: 'background.default', borderRadius: 1 }}><Grid container spacing={3}><Grid item xs={12} md={6}><Typography gutterBottom>Price: ₹{priceRange[0]} - ₹{priceRange[1]}</Typography><Slider value={priceRange} onChange={(e, v) => setPriceRange(v as [number, number])} valueLabelDisplay="auto" min={0} max={10000} step={100} /></Grid><Grid item xs={12} md={6}><Typography gutterBottom>Stock: {stockRange[0]} - {stockRange[1]}</Typography><Slider value={stockRange} onChange={(e, v) => setStockRange(v as [number, number])} valueLabelDisplay="auto" min={0} max={1000} step={10} /></Grid></Grid></Box>)}
+        </Paper>
+        {selectedProducts.length > 0 && (<Box sx={{ mb: 2, display: 'flex', gap: 2 }}><Typography sx={{ alignSelf: 'center' }}>{selectedProducts.length} selected</Typography><ExportSelectedProducts selectedIds={selectedProducts} /><Button variant="contained" color="secondary" onClick={() => setBulkCategoryDialogOpen(true)}>Update Category</Button></Box>)}
+        <TableContainer component={Paper}>
+          <Table><TableHead><TableRow><TableCell padding="checkbox"><Checkbox indeterminate={selectedProducts.length > 0 && selectedProducts.length < products.length} checked={products.length > 0 && selectedProducts.length === products.length} onChange={handleSelectAllClick} /></TableCell><TableCell onClick={() => handleSort('name')} sx={{ cursor: 'pointer' }}>Name</TableCell><TableCell>Category</TableCell><TableCell onClick={() => handleSort('price')} sx={{ cursor: 'pointer' }}>Price</TableCell><TableCell onClick={() => handleSort('quantity')} sx={{ cursor: 'pointer' }}>Stock</TableCell><TableCell>Status</TableCell><TableCell>Actions</TableCell></TableRow></TableHead>
+            <TableBody>
+              {loading ? (<TableRow><TableCell colSpan={7} align="center"><CircularProgress /></TableCell></TableRow>) : productsWithCategoryData.length === 0 ? (<TableRow><TableCell colSpan={7} align="center">No products found</TableCell></TableRow>) : (productsWithCategoryData.map((product) => (
+                  <TableRow key={product.id} hover selected={selectedProductsSet.has(product.id!)}>
+                    <TableCell padding="checkbox"><Checkbox checked={selectedProductsSet.has(product.id!)} onChange={() => handleSelectClick(product.id!)} /></TableCell>
+                    <TableCell>{product.name}</TableCell><TableCell>{product.categoryName}</TableCell><TableCell>₹{(parseFloat(product.price as any) || 0).toFixed(2)}</TableCell><TableCell>{product.quantity}</TableCell>
+                    <TableCell><Chip label={product.status} color={product.status === 'Low Stock' ? 'warning' : product.status === 'In Stock' ? 'success' : 'default'} size="small" /></TableCell>
+                    <TableCell><IconButton onClick={() => handleEditProduct(product)}><EditIcon /></IconButton><IconButton onClick={() => handleDeleteProduct(product.id!)}><DeleteIcon /></IconButton></TableCell>
+                  </TableRow>)))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+        <TablePagination rowsPerPageOptions={[10, 50, 100, 1000]} component="div" count={totalCount} rowsPerPage={rowsPerPage} page={page} onPageChange={handleChangePage} onRowsPerPageChange={handleChangeRowsPerPage} sx={{ mt: 2, bgcolor: 'background.paper', borderRadius: 1, boxShadow: 1 }} />
+        <Dialog open={openDialog} onClose={handleCloseDialog}><DialogTitle>{selectedProduct ? 'Edit Product' : 'Add Product'}</DialogTitle><DialogContent><TextField autoFocus margin="dense" name="name" label="Product Name" type="text" fullWidth value={newProductData.name || ''} onChange={handleInputChange} /><FormControl fullWidth margin="dense"><InputLabel>Category</InputLabel><Select name="categoryId" value={newProductData.categoryId || ''} label="Category" onChange={handleInputChange}>{categories.map(c => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}</Select></FormControl><TextField margin="dense" name="price" label="Price" type="number" fullWidth value={newProductData.price || ''} onChange={handleInputChange} /><TextField margin="dense" name="quantity" label="Stock" type="number" fullWidth value={newProductData.quantity || ''} onChange={handleInputChange} /></DialogContent><DialogActions><Button onClick={handleCloseDialog}>Cancel</Button><Button onClick={handleSaveProduct}>Save</Button></DialogActions></Dialog>
+        <Dialog open={bulkCategoryDialogOpen} onClose={() => setBulkCategoryDialogOpen(false)}><DialogTitle>Update Category for {selectedProducts.length} Products</DialogTitle><DialogContent><FormControl fullWidth margin="dense"><InputLabel>New Category</InputLabel><Select value={selectedBulkCategory} label="New Category" onChange={(e) => setSelectedBulkCategory(e.target.value)}>{categories.map(c => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}</Select></FormControl></DialogContent><DialogActions><Button onClick={() => setBulkCategoryDialogOpen(false)}>Cancel</Button><Button onClick={handleBulkCategoryChange}>Update</Button></DialogActions></Dialog>
+        <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={() => setSnackbar({ ...snackbar, open: false })} message={snackbar.message} />
+      </Container>
+    </ImprovedDashboardLayout>
+  );
+}
+
+export default function ModernProductsPage() {
+  return (
+    <ModernThemeProvider>
+      <ModernDashboardLayout
+        title="Products"
+        subtitle="Manage your product catalog"
+        showBreadcrumbs={true}
+        showSearch={true}
+        showQuickActions={true}
+        pageHeaderActions={
+          <Stack direction="row" spacing={2}>
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              sx={{ borderRadius: 2 }}
+            >
+              Export
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              sx={{ borderRadius: 2 }}
+            >
+              Add New
+            </Button>
+          </Stack>
+        }
+      >
+        <ProductsPage />
+      </ModernDashboardLayout>
+    </ModernThemeProvider>
+  );
+}

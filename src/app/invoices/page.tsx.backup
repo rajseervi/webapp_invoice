@@ -1,0 +1,1050 @@
+"use client";
+import React from 'react';
+import ModernDashboardLayout from '@/components/ModernLayout/ModernDashboardLayout';
+import ModernThemeProvider from '@/contexts/ModernThemeContext';
+import { Button, Stack } from '@mui/material';
+import { Add as AddIcon, Download as DownloadIcon } from '@mui/icons-material';
+
+"use client";
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import ImprovedDashboardLayout from '@/components/DashboardLayout/ImprovedDashboardLayout';
+import { 
+  Container, 
+  Dialog, 
+  DialogContent, 
+  DialogTitle, 
+  IconButton,
+  Box,
+  Tabs,
+  Tab,
+  Typography,
+  Fade,
+  Card,
+  CardContent,
+  Button,
+  Grid,
+  Stack,
+  Chip,
+  Avatar,
+  useTheme,
+  alpha,
+  Slide,
+  Zoom,
+  Paper,
+  Divider,
+  Breadcrumbs,
+  Link as MuiLink
+} from '@mui/material';
+import { 
+  Close as CloseIcon,
+  Dashboard as DashboardIcon,
+  Add as AddIcon,
+  List as ListIcon,
+  Analytics as AnalyticsIcon,
+  Receipt as ReceiptIcon,
+  TrendingUp as TrendingUpIcon,
+  Business as BusinessIcon,
+  AutoAwesome as AutoAwesomeIcon,
+  Stars as SparklesIcon,
+  RocketLaunch as RocketLaunchIcon,
+  Speed as SpeedIcon
+} from '@mui/icons-material';
+import EnhancedInvoiceManager from '@/components/invoices/EnhancedInvoiceManager';
+import EnhancedInvoiceDashboard from '@/components/invoices/EnhancedInvoiceDashboard';
+import ModernInvoiceCreation from '@/components/invoices/ModernInvoiceCreation';
+import { EnhancedInvoice } from '@/services/enhancedInvoiceService';
+
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`invoice-tabpanel-${index}`}
+      aria-labelledby={`invoice-tab-${index}`}
+      {...other}
+    >
+      {value === index && <Box>{children}</Box>}
+    </div>
+  );
+}
+
+function InvoicesPage() {
+  const router = useRouter();
+  const theme = useTheme();
+  const [activeTab, setActiveTab] = useState(0);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [invoiceType, setInvoiceType] = useState<'sales' | 'purchase'>('sales');
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+  };
+
+  const handleCreateInvoice = (type: 'sales' | 'purchase' = 'sales') => {
+    setInvoiceType(type);
+    setCreateDialogOpen(true);
+  };
+
+  const handleQuickCreate = (type: 'regular', invoiceType: 'sales' | 'purchase' = 'sales') => {
+    router.push(`/invoices/new?type=${invoiceType}`);
+  };
+
+  const handleSaveInvoice = (invoice: EnhancedInvoice) => {
+    setCreateDialogOpen(false);
+    router.push(`/invoices/${invoice.id}`);
+  };
+
+  const handleCancelCreate = () => {
+    setCreateDialogOpen(false);
+  };
+
+  const QuickCreatePanel = () => (
+    <Box>
+      {/* Hero Section */}
+      <Slide direction="down" in timeout={600}>
+        <Paper 
+          elevation={0}
+          sx={{ 
+            background: `linear-gradient(135deg, ${theme.palette.primary.main}15 0%, ${theme.palette.secondary.main}10 100%)`,
+            border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+            borderRadius: 3,
+            p: 4,
+            mb: 4,
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+        >
+          <Box sx={{ position: 'relative', zIndex: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <Avatar 
+                sx={{ 
+                  bgcolor: theme.palette.primary.main,
+                  width: 56,
+                  height: 56,
+                  mr: 2,
+                  boxShadow: `0 8px 25px ${alpha(theme.palette.primary.main, 0.3)}`
+                }}
+              >
+                <RocketLaunchIcon sx={{ fontSize: 28 }} />
+              </Avatar>
+              <Box>
+                <Typography variant="h4" fontWeight="bold" gutterBottom>
+                  Create New Invoice
+                </Typography>
+                <Typography variant="body1" color="text.secondary">
+                  Choose from our streamlined creation options to get started quickly
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+          
+          {/* Decorative elements */}
+          <Box
+            sx={{
+              position: 'absolute',
+              top: -50,
+              right: -50,
+              width: 200,
+              height: 200,
+              borderRadius: '50%',
+              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
+              zIndex: 0
+            }}
+          />
+        </Paper>
+      </Slide>
+        
+      <Grid container spacing={3}>
+        {/* Optimized Invoice Creation */}
+        <Grid item xs={12} md={6}>
+          <Zoom in timeout={700}>
+            <Card sx={{ 
+              height: '100%',
+              background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)',
+              color: 'white',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              cursor: 'pointer',
+              position: 'relative',
+              overflow: 'hidden',
+              '&:hover': { 
+                transform: 'translateY(-8px) scale(1.02)',
+                boxShadow: '0 20px 40px rgba(255, 107, 107, 0.4)'
+              }
+            }}
+            onClick={() => router.push('/invoices/optimized')}
+            >
+              <CardContent sx={{ p: 3, position: 'relative', zIndex: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                  <Avatar sx={{ 
+                    bgcolor: 'rgba(255,255,255,0.2)', 
+                    mr: 2,
+                    width: 48,
+                    height: 48,
+                    backdropFilter: 'blur(10px)'
+                  }}>
+                    <SpeedIcon sx={{ fontSize: 24 }} />
+                  </Avatar>
+                  <Box>
+                    <Typography variant="h6" fontWeight="bold">
+                      Optimized Invoices
+                    </Typography>
+                    <Chip 
+                      label="🚀 New & Fast" 
+                      size="small" 
+                      sx={{ 
+                        bgcolor: 'rgba(255,255,255,0.2)',
+                        color: 'white',
+                        fontSize: '0.7rem'
+                      }} 
+                    />
+                  </Box>
+                </Box>
+                <Typography variant="body2" sx={{ mb: 3, opacity: 0.9, lineHeight: 1.6 }}>
+                  Lightning-fast invoice creation with insufficient stock support. Up to 70% faster with smart warnings.
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+                  <Chip label="Allow Low Stock" size="small" sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white' }} />
+                  <Chip label="Batch Operations" size="small" sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white' }} />
+                  <Chip label="Quick Mode" size="small" sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white' }} />
+                </Box>
+              </CardContent>
+              
+              {/* Decorative elements */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: -40,
+                  right: -40,
+                  width: 150,
+                  height: 150,
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.1)',
+                  zIndex: 0
+                }}
+              />
+            </Card>
+          </Zoom>
+        </Grid>
+
+        {/* Sales Invoices */}
+        <Grid item xs={12} md={6}>
+          <Zoom in timeout={800}>
+            <Card sx={{ 
+              height: '100%',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              cursor: 'pointer',
+              position: 'relative',
+              overflow: 'hidden',
+              '&:hover': { 
+                transform: 'translateY(-8px) scale(1.02)',
+                boxShadow: '0 20px 40px rgba(102, 126, 234, 0.4)'
+              }
+            }}>
+              <CardContent sx={{ p: 3, position: 'relative', zIndex: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                  <Avatar sx={{ 
+                    bgcolor: 'rgba(255,255,255,0.2)', 
+                    mr: 2,
+                    width: 48,
+                    height: 48,
+                    backdropFilter: 'blur(10px)'
+                  }}>
+                    <TrendingUpIcon sx={{ fontSize: 24 }} />
+                  </Avatar>
+                  <Box>
+                    <Typography variant="h6" fontWeight="bold">
+                      Sales Invoices
+                    </Typography>
+                    <Chip 
+                      label="Most Popular" 
+                      size="small" 
+                      sx={{ 
+                        bgcolor: 'rgba(255,255,255,0.2)',
+                        color: 'white',
+                        fontSize: '0.7rem'
+                      }} 
+                    />
+                  </Box>
+                </Box>
+                <Typography variant="body2" sx={{ mb: 3, opacity: 0.9, lineHeight: 1.6 }}>
+                  Create professional invoices for your customers and track sales revenue with automated calculations
+                </Typography>
+                <Stack spacing={2}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    startIcon={<ReceiptIcon />}
+                    onClick={() => handleQuickCreate('regular', 'sales')}
+                    sx={{ 
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(255,255,255,0.3)',
+                      py: 1.5,
+                      fontWeight: 'bold',
+                      '&:hover': { 
+                        bgcolor: 'rgba(255,255,255,0.3)',
+                        transform: 'translateY(-2px)'
+                      }
+                    }}
+                  >
+                    Create Sales Invoice
+                  </Button>
+                </Stack>
+              </CardContent>
+              
+              {/* Decorative background */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: -30,
+                  right: -30,
+                  width: 120,
+                  height: 120,
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.1)',
+                  zIndex: 0
+                }}
+              />
+            </Card>
+          </Zoom>
+        </Grid>
+
+        {/* Purchase Invoices */}
+        <Grid item xs={12} md={6}>
+          <Zoom in timeout={1000}>
+            <Card sx={{ 
+              height: '100%',
+              background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+              color: 'white',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              cursor: 'pointer',
+              position: 'relative',
+              overflow: 'hidden',
+              '&:hover': { 
+                transform: 'translateY(-8px) scale(1.02)',
+                boxShadow: '0 20px 40px rgba(240, 147, 251, 0.4)'
+              }
+            }}>
+              <CardContent sx={{ p: 3, position: 'relative', zIndex: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                  <Avatar sx={{ 
+                    bgcolor: 'rgba(255,255,255,0.2)', 
+                    mr: 2,
+                    width: 48,
+                    height: 48,
+                    backdropFilter: 'blur(10px)'
+                  }}>
+                    <BusinessIcon sx={{ fontSize: 24 }} />
+                  </Avatar>
+                  <Box>
+                    <Typography variant="h6" fontWeight="bold">
+                      Purchase Invoices
+                    </Typography>
+                    <Chip 
+                      label="Expense Tracking" 
+                      size="small" 
+                      sx={{ 
+                        bgcolor: 'rgba(255,255,255,0.2)',
+                        color: 'white',
+                        fontSize: '0.7rem'
+                      }} 
+                    />
+                  </Box>
+                </Box>
+                <Typography variant="body2" sx={{ mb: 3, opacity: 0.9, lineHeight: 1.6 }}>
+                  Record purchases from suppliers and manage business expenses with comprehensive tracking
+                </Typography>
+                <Stack spacing={2}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    startIcon={<BusinessIcon />}
+                    onClick={() => handleQuickCreate('regular', 'purchase')}
+                    sx={{ 
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(255,255,255,0.3)',
+                      py: 1.5,
+                      fontWeight: 'bold',
+                      '&:hover': { 
+                        bgcolor: 'rgba(255,255,255,0.3)',
+                        transform: 'translateY(-2px)'
+                      }
+                    }}
+                  >
+                    Create Purchase Invoice
+                  </Button>
+                </Stack>
+              </CardContent>
+              
+              {/* Decorative background */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: -30,
+                  right: -30,
+                  width: 120,
+                  height: 120,
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.1)',
+                  zIndex: 0
+                }}
+              />
+            </Card>
+          </Zoom>
+        </Grid>
+
+        {/* Advanced Creation */}
+        <Grid item xs={12}>
+          <Zoom in timeout={1200}>
+            <Card sx={{ 
+              background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+              color: 'white',
+              position: 'relative',
+              overflow: 'hidden',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: '0 15px 35px rgba(79, 172, 254, 0.3)'
+              }
+            }}>
+              <CardContent sx={{ p: 4, position: 'relative', zIndex: 1 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar sx={{ 
+                      bgcolor: 'rgba(255,255,255,0.2)', 
+                      mr: 3,
+                      width: 56,
+                      height: 56,
+                      backdropFilter: 'blur(10px)'
+                    }}>
+                      <SparklesIcon sx={{ fontSize: 28 }} />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="h6" fontWeight="bold" gutterBottom>
+                        Advanced Invoice Creation Wizard
+                      </Typography>
+                      <Typography variant="body2" sx={{ opacity: 0.9, lineHeight: 1.6 }}>
+                        Step-by-step guided creation with validation, templates, and advanced features
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    startIcon={<SpeedIcon />}
+                    onClick={() => handleCreateInvoice('sales')}
+                    sx={{ 
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(255,255,255,0.3)',
+                      px: 3,
+                      py: 1.5,
+                      fontWeight: 'bold',
+                      '&:hover': { 
+                        bgcolor: 'rgba(255,255,255,0.3)',
+                        transform: 'translateY(-2px)'
+                      }
+                    }}
+                  >
+                    Launch Wizard
+                  </Button>
+                </Box>
+              </CardContent>
+              
+              {/* Decorative elements */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: -40,
+                  right: -40,
+                  width: 150,
+                  height: 150,
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.1)',
+                  zIndex: 0
+                }}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  bottom: -20,
+                  left: -20,
+                  width: 80,
+                  height: 80,
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.05)',
+                  zIndex: 0
+                }}
+              />
+            </Card>
+          </Zoom>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+
+  return (
+    <ImprovedDashboardLayout>
+      <Container maxWidth="xl" sx={{ mt: 2, mb: 4 }}>
+        {/* Enhanced Page Header */}
+        <Fade in timeout={600}>
+          <Box sx={{ mb: 4 }}>
+            {/* Breadcrumbs */}
+            <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}>
+              <MuiLink 
+                underline="hover" 
+                color="inherit" 
+                href="/dashboard"
+                sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              >
+                <DashboardIcon sx={{ mr: 0.5, fontSize: 16 }} />
+                Dashboard
+              </MuiLink>
+              <Typography color="text.primary" sx={{ display: 'flex', alignItems: 'center' }}>
+                <ReceiptIcon sx={{ mr: 0.5, fontSize: 16 }} />
+                Invoices
+              </Typography>
+            </Breadcrumbs>
+
+            {/* Main Header */}
+            <Paper 
+              elevation={0}
+              sx={{ 
+                background: `linear-gradient(135deg, ${theme.palette.primary.main}08 0%, ${theme.palette.secondary.main}05 100%)`,
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.08)}`,
+                borderRadius: 3,
+                p: 4,
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              <Box sx={{ position: 'relative', zIndex: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar 
+                      sx={{ 
+                        bgcolor: theme.palette.primary.main,
+                        width: 64,
+                        height: 64,
+                        mr: 3,
+                        boxShadow: `0 8px 25px ${alpha(theme.palette.primary.main, 0.3)}`
+                      }}
+                    >
+                      <ReceiptIcon sx={{ fontSize: 32 }} />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="h3" component="h1" fontWeight="bold" gutterBottom>
+                        Invoice Management
+                      </Typography>
+                      <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+                        Comprehensive invoice management with GST compliance
+                      </Typography>
+                      <Stack direction="row" spacing={1}>
+                        <Chip 
+                          icon={<AutoAwesomeIcon />} 
+                          label="GST Compliant" 
+                          color="primary" 
+                          variant="outlined" 
+                          size="small" 
+                        />
+                        <Chip 
+                          icon={<SpeedIcon />} 
+                          label="Automated Calculations" 
+                          color="secondary" 
+                          variant="outlined" 
+                          size="small" 
+                        />
+                        <Chip 
+                          icon={<AnalyticsIcon />} 
+                          label="Advanced Analytics" 
+                          color="success" 
+                          variant="outlined" 
+                          size="small" 
+                        />
+                      </Stack>
+                    </Box>
+                  </Box>
+                  
+                  {/* Quick Stats */}
+                  <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 3 }}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h4" fontWeight="bold" color="primary.main">
+                        24/7
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Available
+                      </Typography>
+                    </Box>
+                    <Divider orientation="vertical" flexItem />
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h4" fontWeight="bold" color="success.main">
+                        100%
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Accurate
+                      </Typography>
+                    </Box>
+                    <Divider orientation="vertical" flexItem />
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h4" fontWeight="bold" color="info.main">
+                        Fast
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Processing
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+              
+              {/* Decorative elements */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: -60,
+                  right: -60,
+                  width: 200,
+                  height: 200,
+                  borderRadius: '50%',
+                  background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.03)} 100%)`,
+                  zIndex: 0
+                }}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  bottom: -40,
+                  left: -40,
+                  width: 120,
+                  height: 120,
+                  borderRadius: '50%',
+                  background: `linear-gradient(135deg, ${alpha(theme.palette.secondary.main, 0.05)} 0%, ${alpha(theme.palette.primary.main, 0.03)} 100%)`,
+                  zIndex: 0
+                }}
+              />
+            </Paper>
+          </Box>
+        </Fade>
+
+        {/* Enhanced Tabs */}
+        <Slide direction="up" in timeout={800}>
+          <Paper 
+            elevation={0}
+            sx={{ 
+              background: theme.palette.background.paper,
+              border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+              borderRadius: 2,
+              mb: 3,
+              overflow: 'hidden'
+            }}
+          >
+            <Tabs 
+              value={activeTab} 
+              onChange={handleTabChange} 
+              aria-label="invoice management tabs"
+              variant="scrollable"
+              scrollButtons="auto"
+              sx={{
+                '& .MuiTabs-indicator': {
+                  height: 3,
+                  borderRadius: '3px 3px 0 0',
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`
+                },
+                '& .MuiTab-root': {
+                  minHeight: 72,
+                  textTransform: 'none',
+                  fontSize: '1rem',
+                  fontWeight: 500,
+                  px: 3,
+                  py: 2,
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    backgroundColor: alpha(theme.palette.primary.main, 0.04),
+                    transform: 'translateY(-1px)'
+                  },
+                  '&.Mui-selected': {
+                    color: theme.palette.primary.main,
+                    fontWeight: 600,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.08)
+                  }
+                }
+              }}
+            >
+              <Tab 
+                icon={
+                  <Avatar 
+                    sx={{ 
+                      width: 32, 
+                      height: 32, 
+                      bgcolor: activeTab === 0 ? theme.palette.primary.main : alpha(theme.palette.primary.main, 0.1),
+                      color: activeTab === 0 ? 'white' : theme.palette.primary.main,
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    <DashboardIcon sx={{ fontSize: 18 }} />
+                  </Avatar>
+                } 
+                label={
+                  <Box sx={{ ml: 1 }}>
+                    <Typography variant="body1" fontWeight="inherit">
+                      Dashboard
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Overview & Stats
+                    </Typography>
+                  </Box>
+                }
+                iconPosition="start"
+                sx={{ flexDirection: 'row', justifyContent: 'flex-start' }}
+              />
+              <Tab 
+                icon={
+                  <Avatar 
+                    sx={{ 
+                      width: 32, 
+                      height: 32, 
+                      bgcolor: activeTab === 1 ? theme.palette.primary.main : alpha(theme.palette.primary.main, 0.1),
+                      color: activeTab === 1 ? 'white' : theme.palette.primary.main,
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    <AddIcon sx={{ fontSize: 18 }} />
+                  </Avatar>
+                } 
+                label={
+                  <Box sx={{ ml: 1 }}>
+                    <Typography variant="body1" fontWeight="inherit">
+                      Create Invoice
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Quick & Advanced
+                    </Typography>
+                  </Box>
+                }
+                iconPosition="start"
+                sx={{ flexDirection: 'row', justifyContent: 'flex-start' }}
+              />
+              <Tab 
+                icon={
+                  <Avatar 
+                    sx={{ 
+                      width: 32, 
+                      height: 32, 
+                      bgcolor: activeTab === 2 ? theme.palette.primary.main : alpha(theme.palette.primary.main, 0.1),
+                      color: activeTab === 2 ? 'white' : theme.palette.primary.main,
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    <ListIcon sx={{ fontSize: 18 }} />
+                  </Avatar>
+                } 
+                label={
+                  <Box sx={{ ml: 1 }}>
+                    <Typography variant="body1" fontWeight="inherit">
+                      Manage Invoices
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      View & Edit
+                    </Typography>
+                  </Box>
+                }
+                iconPosition="start"
+                sx={{ flexDirection: 'row', justifyContent: 'flex-start' }}
+              />
+              <Tab 
+                icon={
+                  <Avatar 
+                    sx={{ 
+                      width: 32, 
+                      height: 32, 
+                      bgcolor: activeTab === 3 ? theme.palette.primary.main : alpha(theme.palette.primary.main, 0.1),
+                      color: activeTab === 3 ? 'white' : theme.palette.primary.main,
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    <AnalyticsIcon sx={{ fontSize: 18 }} />
+                  </Avatar>
+                } 
+                label={
+                  <Box sx={{ ml: 1 }}>
+                    <Typography variant="body1" fontWeight="inherit">
+                      Analytics
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Reports & Insights
+                    </Typography>
+                  </Box>
+                }
+                iconPosition="start"
+                sx={{ flexDirection: 'row', justifyContent: 'flex-start' }}
+              />
+            </Tabs>
+          </Paper>
+        </Slide>
+
+        {/* Tab Panels */}
+        <TabPanel value={activeTab} index={0}>
+          <EnhancedInvoiceDashboard type="all" />
+        </TabPanel>
+
+        <TabPanel value={activeTab} index={1}>
+          <QuickCreatePanel />
+        </TabPanel>
+
+        <TabPanel value={activeTab} index={2}>
+          <EnhancedInvoiceManager />
+        </TabPanel>
+
+        <TabPanel value={activeTab} index={3}>
+          <Fade in timeout={1000}>
+            <Paper 
+              elevation={0}
+              sx={{ 
+                background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.05)} 0%, ${alpha(theme.palette.primary.main, 0.03)} 100%)`,
+                border: `1px solid ${alpha(theme.palette.info.main, 0.1)}`,
+                borderRadius: 3,
+                p: 6,
+                textAlign: 'center',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              <Box sx={{ position: 'relative', zIndex: 1 }}>
+                <Zoom in timeout={1200}>
+                  <Avatar 
+                    sx={{ 
+                      width: 120, 
+                      height: 120, 
+                      bgcolor: alpha(theme.palette.info.main, 0.1),
+                      color: theme.palette.info.main,
+                      mx: 'auto',
+                      mb: 3,
+                      boxShadow: `0 8px 25px ${alpha(theme.palette.info.main, 0.2)}`
+                    }}
+                  >
+                    <AnalyticsIcon sx={{ fontSize: 60 }} />
+                  </Avatar>
+                </Zoom>
+                
+                <Typography variant="h3" fontWeight="bold" gutterBottom>
+                  Advanced Analytics
+                </Typography>
+                <Typography variant="h6" color="text.secondary" sx={{ mb: 4, maxWidth: 600, mx: 'auto' }}>
+                  Comprehensive reporting and insights dashboard with real-time data visualization, 
+                  trend analysis, and business intelligence features
+                </Typography>
+                
+                <Stack direction="row" spacing={2} justifyContent="center" sx={{ mb: 4 }}>
+                  <Chip 
+                    icon={<SparklesIcon />} 
+                    label="AI-Powered Insights" 
+                    color="info" 
+                    variant="outlined" 
+                  />
+                  <Chip 
+                    icon={<TrendingUpIcon />} 
+                    label="Real-time Analytics" 
+                    color="success" 
+                    variant="outlined" 
+                  />
+                  <Chip 
+                    icon={<AutoAwesomeIcon />} 
+                    label="Smart Reports" 
+                    color="primary" 
+                    variant="outlined" 
+                  />
+                </Stack>
+                
+                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    startIcon={<RocketLaunchIcon />}
+                    sx={{ 
+                      px: 4,
+                      py: 1.5,
+                      borderRadius: 2,
+                      background: `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.primary.main} 100%)`,
+                      '&:hover': {
+                        transform: 'translateY(-2px)',
+                        boxShadow: `0 8px 25px ${alpha(theme.palette.info.main, 0.3)}`
+                      }
+                    }}
+                  >
+                    Coming Soon
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="large"
+                    startIcon={<DashboardIcon />}
+                    onClick={() => setActiveTab(0)}
+                    sx={{ 
+                      px: 4,
+                      py: 1.5,
+                      borderRadius: 2
+                    }}
+                  >
+                    View Dashboard
+                  </Button>
+                </Box>
+              </Box>
+              
+              {/* Decorative elements */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: -80,
+                  right: -80,
+                  width: 200,
+                  height: 200,
+                  borderRadius: '50%',
+                  background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.08)} 0%, ${alpha(theme.palette.primary.main, 0.04)} 100%)`,
+                  zIndex: 0
+                }}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  bottom: -60,
+                  left: -60,
+                  width: 150,
+                  height: 150,
+                  borderRadius: '50%',
+                  background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.06)} 0%, ${alpha(theme.palette.info.main, 0.03)} 100%)`,
+                  zIndex: 0
+                }}
+              />
+            </Paper>
+          </Fade>
+        </TabPanel>
+        
+        {/* Advanced Create Invoice Dialog */}
+        <Dialog 
+          open={createDialogOpen} 
+          onClose={handleCancelCreate}
+          maxWidth="xl"
+          fullWidth
+          PaperProps={{
+            sx: { 
+              height: '95vh',
+              borderRadius: 3,
+              boxShadow: `0 25px 50px ${alpha(theme.palette.primary.main, 0.15)}`,
+              overflow: 'hidden'
+            }
+          }}
+          TransitionComponent={Slide}
+          TransitionProps={{ direction: 'up' } as any}
+        >
+          <DialogTitle sx={{ 
+            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            p: 3,
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+              <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', mr: 2, width: 48, height: 48 }}>
+                <SparklesIcon sx={{ fontSize: 24 }} />
+              </Avatar>
+              <Box>
+                <Typography variant="h5" fontWeight="bold">
+                  Advanced Invoice Creation Wizard
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  Step-by-step guided creation with validation and templates
+                </Typography>
+              </Box>
+            </Box>
+            
+            <IconButton
+              aria-label="close"
+              onClick={handleCancelCreate}
+              sx={{
+                position: 'absolute',
+                right: 16,
+                top: 16,
+                color: 'white',
+                bgcolor: 'rgba(255,255,255,0.1)',
+                backdropFilter: 'blur(10px)',
+                '&:hover': {
+                  bgcolor: 'rgba(255,255,255,0.2)',
+                  transform: 'scale(1.1)'
+                }
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+            
+            {/* Decorative elements */}
+            <Box
+              sx={{
+                position: 'absolute',
+                top: -30,
+                right: -30,
+                width: 120,
+                height: 120,
+                borderRadius: '50%',
+                background: 'rgba(255,255,255,0.1)',
+                zIndex: 0
+              }}
+            />
+          </DialogTitle>
+          <DialogContent sx={{ p: 0, overflow: 'hidden' }}>
+            <ModernInvoiceCreation
+              type={invoiceType}
+              onSave={handleSaveInvoice}
+              onCancel={handleCancelCreate}
+            />
+          </DialogContent>
+        </Dialog>
+      </Container>
+    </ImprovedDashboardLayout>
+  );
+}
+
+export default function ModernInvoicesPage() {
+  return (
+    <ModernThemeProvider>
+      <ModernDashboardLayout
+        title="Invoices"
+        subtitle="Manage your invoices and billing"
+        showBreadcrumbs={true}
+        showSearch={true}
+        showQuickActions={true}
+        pageHeaderActions={
+          <Stack direction="row" spacing={2}>
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              sx={{ borderRadius: 2 }}
+            >
+              Export
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              sx={{ borderRadius: 2 }}
+            >
+              Add New
+            </Button>
+          </Stack>
+        }
+      >
+        <InvoicesPage />
+      </ModernDashboardLayout>
+    </ModernThemeProvider>
+  );
+}

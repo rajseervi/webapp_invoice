@@ -1,0 +1,314 @@
+"use client";
+import React from 'react';
+import ModernDashboardLayout from '@/components/ModernLayout/ModernDashboardLayout';
+import ModernThemeProvider from '@/contexts/ModernThemeContext';
+import { Button, Stack } from '@mui/material';
+import { Add as AddIcon, Download as DownloadIcon } from '@mui/icons-material';
+
+"use client"
+import React, { useState } from 'react';
+import {
+  Container,
+  Grid,
+  Paper,
+  Typography,
+  Box,
+  Tabs,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Card,
+  CardContent,
+  CardActions,
+  Button,
+  Chip
+} from '@mui/material';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
+} from 'recharts';
+import { Assessment, Inventory, TrendingUp, Receipt } from '@mui/icons-material';
+import { useRouter } from 'next/navigation';
+import ImprovedDashboardLayout from '@/components/DashboardLayout/ImprovedDashboardLayout';
+
+const salesData = [
+  { month: 'Jan', revenue: 40000, profit: 12000 },
+  { month: 'Feb', revenue: 30000, profit: 9000 },
+  { month: 'Mar', revenue: 20000, profit: 6000 },
+  { month: 'Apr', revenue: 27800, profit: 8340 },
+];
+
+const topProducts = [
+  { id: 1, name: 'Product A', sales: 150, revenue: 45000 },
+  { id: 2, name: 'Product B', sales: 120, revenue: 36000 },
+];
+
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+  return (
+    <div hidden={value !== index} {...other}>
+      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+    </div>
+  );
+}
+
+function Reports() {
+  const [tabValue, setTabValue] = useState(0);
+  const router = useRouter();
+
+  const reportCards = [
+    {
+      title: 'Product Analysis',
+      description: 'Comprehensive product analysis, category-wise summaries, and stock reports',
+      icon: <Assessment color="primary" />,
+      path: '/reports/products',
+      features: ['Product Performance', 'Category Analysis', 'Stock Analysis', 'Pricing Insights']
+    },
+    {
+      title: 'Data Quality Dashboard',
+      description: 'Identify and fix data quality issues, missing information, and data standardization',
+      icon: <Receipt color="warning" />,
+      path: '/reports/data-quality',
+      features: ['Quality Metrics', 'Auto-fix Tools', 'Issue Tracking', 'Data Standardization']
+    },
+    {
+      title: 'Inventory Reports',
+      description: 'Comprehensive inventory analytics including stock insights and performance metrics',
+      icon: <Inventory color="success" />,
+      path: '/reports/inventory',
+      features: ['Stock Levels', 'Low Stock Alerts', 'Category Reports', 'Reorder Analysis']
+    },
+    {
+      title: 'Sales Reports',
+      description: 'Sales performance, revenue trends, and customer analytics',
+      icon: <TrendingUp color="info" />,
+      path: '/reports/sales',
+      features: ['Revenue Trends', 'Top Products', 'Customer Analysis', 'Period Comparison']
+    },
+    {
+      title: 'Purchase Analysis',
+      description: 'Purchase trends, supplier performance, and cost analysis reports',
+      icon: <Assessment color="secondary" />,
+      path: '/reports/purchase',
+      features: ['Purchase Trends', 'Supplier Analysis', 'Cost Optimization', 'Payment Tracking']
+    },
+    {
+      title: 'Profit & Loss Report',
+      description: 'Comprehensive financial performance analysis with profit margins and trends',
+      icon: <TrendingUp color="success" />,
+      path: '/reports/profit-loss',
+      features: ['Revenue Analysis', 'Cost Breakdown', 'Profit Margins', 'Monthly Trends']
+    }
+  ];
+
+  return (
+    <ImprovedDashboardLayout>
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Typography variant="h4" gutterBottom>
+          Reports & Analytics
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+          Access comprehensive reports and analytics for your business insights
+        </Typography>
+
+        {/* Report Cards */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          {reportCards.map((report, index) => (
+            <Grid item xs={12} md={6} key={index}>
+              <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Box display="flex" alignItems="center" mb={2}>
+                    {report.icon}
+                    <Typography variant="h6" sx={{ ml: 1 }}>
+                      {report.title}
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    {report.description}
+                  </Typography>
+                  <Box>
+                    {report.features.map((feature, idx) => (
+                      <Chip
+                        key={idx}
+                        label={feature}
+                        size="small"
+                        sx={{ mr: 1, mb: 1 }}
+                        variant="outlined"
+                      />
+                    ))}
+                  </Box>
+                </CardContent>
+                <CardActions>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    onClick={() => router.push(report.path)}
+                    fullWidth
+                  >
+                    View Report
+                  </Button>
+                </CardActions>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+
+        {/* Quick Overview */}
+        <Paper sx={{ width: '100%', mb: 4 }}>
+          <Tabs
+            value={tabValue}
+            onChange={(_, newValue) => setTabValue(newValue)}
+            indicatorColor="primary"
+            textColor="primary"
+          >
+            <Tab label="Sales Overview" />
+            <Tab label="Top Products" />
+            <Tab label="Quick Stats" />
+          </Tabs>
+
+          <TabPanel value={tabValue} index={0}>
+            <Box sx={{ height: 400 }}>
+              <ResponsiveContainer>
+                <BarChart data={salesData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="revenue" fill="#8884d8" name="Revenue" />
+                  <Bar dataKey="profit" fill="#82ca9d" name="Profit" />
+                </BarChart>
+              </ResponsiveContainer>
+            </Box>
+          </TabPanel>
+
+          <TabPanel value={tabValue} index={1}>
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Product Name</TableCell>
+                    <TableCell align="right">Units Sold</TableCell>
+                    <TableCell align="right">Revenue (₹)</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {topProducts.map((product) => (
+                    <TableRow key={product.id}>
+                      <TableCell>{product.name}</TableCell>
+                      <TableCell align="right">{product.sales}</TableCell>
+                      <TableCell align="right">{product.revenue}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </TabPanel>
+
+          <TabPanel value={tabValue} index={2}>
+            <Grid container spacing={3}>
+              <Grid item xs={12} sm={6} md={3}>
+                <Card>
+                  <CardContent>
+                    <Typography color="textSecondary" gutterBottom>
+                      Total Products
+                    </Typography>
+                    <Typography variant="h5">
+                      245
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Card>
+                  <CardContent>
+                    <Typography color="textSecondary" gutterBottom>
+                      Active Invoices
+                    </Typography>
+                    <Typography variant="h5">
+                      89
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Card>
+                  <CardContent>
+                    <Typography color="textSecondary" gutterBottom>
+                      Monthly Revenue
+                    </Typography>
+                    <Typography variant="h5">
+                      ₹2,45,000
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Card>
+                  <CardContent>
+                    <Typography color="textSecondary" gutterBottom>
+                      Total Inventory Value
+                    </Typography>
+                    <Typography variant="h5">
+                      ₹8,45,000
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          </TabPanel>
+        </Paper>
+      </Container>
+    </ImprovedDashboardLayout>
+  );
+}
+
+export default function ModernReports() {
+  return (
+    <ModernThemeProvider>
+      <ModernDashboardLayout
+        title="Reports & Analytics"
+        subtitle="Business analytics and insights"
+        showBreadcrumbs={true}
+        showSearch={true}
+        showQuickActions={true}
+        pageHeaderActions={
+          <Stack direction="row" spacing={2}>
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              sx={{ borderRadius: 2 }}
+            >
+              Export
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              sx={{ borderRadius: 2 }}
+            >
+              Add New
+            </Button>
+          </Stack>
+        }
+      >
+        <Reports />
+      </ModernDashboardLayout>
+    </ModernThemeProvider>
+  );
+}

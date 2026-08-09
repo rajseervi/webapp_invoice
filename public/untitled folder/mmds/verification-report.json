@@ -1,0 +1,186 @@
+{
+  "timestamp": "2025-07-28T17:48:19.093Z",
+  "totalChecked": 28,
+  "validPages": 23,
+  "pagesWithIssues": 5,
+  "results": [
+    {
+      "page": "invoices/page.tsx",
+      "title": "Invoices",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "orders/page.tsx",
+      "title": "Orders",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "products/page.tsx",
+      "title": "Products",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "parties/page.tsx",
+      "title": "Parties",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "purchases/page.tsx",
+      "title": "Purchase Orders",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "inventory/page.tsx",
+      "title": "Inventory Management",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "categories/page.tsx",
+      "title": "Categories",
+      "valid": false,
+      "issues": [
+        "Original page should not have \"use client\" directive"
+      ]
+    },
+    {
+      "page": "reports/page.tsx",
+      "title": "Reports & Analytics",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "invoices/new/page.tsx",
+      "title": "Create Invoice",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "invoices/gst/page.tsx",
+      "title": "GST Invoices",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "invoices/regular/page.tsx",
+      "title": "Regular Invoices",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "orders/new/page.tsx",
+      "title": "Create Order",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "products/new/page.tsx",
+      "title": "Add Product",
+      "valid": false,
+      "issues": [
+        "Original page missing proper export"
+      ]
+    },
+    {
+      "page": "products/management/page.tsx",
+      "title": "Product Management",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "parties/new/page.tsx",
+      "title": "Add Party",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "purchases/new/page.tsx",
+      "title": "Create Purchase Order",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "reports/sales/page.tsx",
+      "title": "Sales Reports",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "reports/products/page.tsx",
+      "title": "Product Reports",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "reports/profit-loss/page.tsx",
+      "title": "Profit & Loss",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "reports/users/page.tsx",
+      "title": "User Reports",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "settings/page.tsx",
+      "title": "Settings",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "backup/page.tsx",
+      "title": "Backup & Restore",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "help-desk/page.tsx",
+      "title": "Help & Support",
+      "valid": false,
+      "issues": [
+        "Original page should not have \"use client\" directive"
+      ]
+    },
+    {
+      "page": "profile/page.tsx",
+      "title": "User Profile",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "ledger/page.tsx",
+      "title": "Ledger",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "accounting/page.tsx",
+      "title": "Accounting",
+      "valid": false,
+      "issues": [
+        "Original page should not have \"use client\" directive"
+      ]
+    },
+    {
+      "page": "stock-management/page.tsx",
+      "title": "Stock Management",
+      "valid": true,
+      "issues": []
+    },
+    {
+      "page": "inventory/alerts/page.tsx",
+      "title": "Inventory Alerts",
+      "valid": false,
+      "issues": [
+        "Original page should not have \"use client\" directive"
+      ]
+    }
+  ]
+}

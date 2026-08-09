@@ -1,0 +1,53 @@
+"use client";
+import React from 'react';
+import ModernDashboardLayout from '@/components/ModernLayout/ModernDashboardLayout';
+import ModernThemeProvider from '@/contexts/ModernThemeContext';
+import { Button, Stack } from '@mui/material';
+import { Add as AddIcon, Download as DownloadIcon } from '@mui/icons-material';
+
+"use client";
+import React from 'react';
+import ImprovedDashboardLayout from '@/components/DashboardLayout/ImprovedDashboardLayout';
+import ImprovedInventoryManager from '@/components/Inventory/ImprovedInventoryManager';
+
+function InventoryPage() {
+  return (
+    <ImprovedDashboardLayout>
+      <ImprovedInventoryManager />
+    </ImprovedDashboardLayout>
+  );
+}
+
+export default function ModernInventoryPage() {
+  return (
+    <ModernThemeProvider>
+      <ModernDashboardLayout
+        title="Inventory Management"
+        subtitle="Monitor stock levels and inventory"
+        showBreadcrumbs={true}
+        showSearch={true}
+        showQuickActions={true}
+        pageHeaderActions={
+          <Stack direction="row" spacing={2}>
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              sx={{ borderRadius: 2 }}
+            >
+              Export
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              sx={{ borderRadius: 2 }}
+            >
+              Add New
+            </Button>
+          </Stack>
+        }
+      >
+        <InventoryPage />
+      </ModernDashboardLayout>
+    </ModernThemeProvider>
+  );
+}

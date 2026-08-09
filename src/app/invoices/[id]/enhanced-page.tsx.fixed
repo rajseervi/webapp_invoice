@@ -1,0 +1,82 @@
+"use client";
+
+import React, { useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import {
+  Container,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Typography,
+  Grid,
+  CircularProgress,
+  Alert,
+} from '@mui/material';
+import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
+import Link from 'next/link';
+import { VisuallyEnhancedDashboardLayout } from '@/components/ModernLayout';
+import ModernThemeProvider from '@/contexts/ModernThemeContext';
+
+export default function EnhancedInvoiceDetailPage() {
+  const { id } = useParams();
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <ModernThemeProvider>
+      <VisuallyEnhancedDashboardLayout
+        title="Invoice Details"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Invoices', href: '/invoices' },
+          { label: 'Details' }
+        ]}
+        type="invoices"
+        visualEffects={true}
+        showParticles={false}
+      >
+        <Container maxWidth="xl" sx={{ mt: 2, mb: 4 }}>
+          <Box sx={{ mb: 4 }}>
+            <Button
+              component={Link}
+              href="/invoices"
+              startIcon={<ArrowBackIcon />}
+              variant="outlined"
+            >
+              Back to Invoices
+            </Button>
+          </Box>
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
+
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h5" gutterBottom>
+                      Invoice Details
+                    </Typography>
+                    <Typography color="textSecondary">
+                      Invoice ID: {id}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          )}
+        </Container>
+      </VisuallyEnhancedDashboardLayout>
+    </ModernThemeProvider>
+  );
+}

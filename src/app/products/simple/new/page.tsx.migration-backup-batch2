@@ -1,0 +1,12 @@
+"use client";
+import React from 'react';
+import ImprovedDashboardLayout from '@/components/DashboardLayout/ImprovedDashboardLayout';
+import SimpleProductForm from '@/components/products/SimpleProductForm';
+
+export default function NewSimpleProductPage() {
+  return (
+    <ImprovedDashboardLayout>
+      <SimpleProductForm />
+    </ImprovedDashboardLayout>
+  );
+}
