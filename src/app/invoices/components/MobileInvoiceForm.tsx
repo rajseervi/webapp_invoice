@@ -420,8 +420,8 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
     };
     setPendingQtyProduct(newItem);
     setPendingQty('');
-    // Keep search dropdown open with current query — qty prompt overlays on top
-    setProductSearchOpen(true);
+    // Hide product list while the qty prompt is shown
+    setProductSearchOpen(false);
     setTimeout(() => {
       if (qtyInputRef.current) { qtyInputRef.current.focus(); qtyInputRef.current.select(); }
     }, 100);
@@ -609,6 +609,16 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
     fontWeight: 700, color: palette.text, textTransform: 'uppercase' as const, letterSpacing: 0.5, fontSize: '0.7rem',
   };
 
+  // Product search results for the dropdown — products already in the invoice are
+  // hidden (matches desktop QuickProductSearch behaviour, where the cart list is
+  // managed separately below).
+  const searchResults = useMemo(
+    () => searchProducts(products, productSearchQuery, 30).filter(p =>
+      !lineItems.some(item => item.productId === p.id)
+    ),
+    [products, productSearchQuery, lineItems]
+  );
+
   return (
     <Box sx={{ maxWidth: 560, mx: 'auto', pb: 16, bgcolor: palette.surface, minHeight: '100vh' }}>
       {error && <Alert severity="error" sx={{ mx: 1, mt: 1, borderRadius: 2 }} onClose={() => setError(null)}>{error}</Alert>}
@@ -671,10 +681,19 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
                       </Typography>
                     )}
                   </Box>
-                  <Button size="small" variant="outlined" onClick={() => { setPartySelected(false); setSelectedPartyId(''); }}
-                    sx={{ ...styles.btnOutline, height: 26, fontSize: '0.65rem', py: 0, minWidth: 50 }}>
-                    Change
-                  </Button>
+                  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                    <Badge badgeContent={Object.keys(selectedParty.categoryDiscounts || {}).length} color="primary" showZero
+                      sx={{ '& .MuiBadge-badge': { fontSize: '0.55rem', height: 15, minWidth: 15 } }}>
+                      <Button size="small" variant="outlined" onClick={() => setOpenCategoryDiscountEditor(true)}
+                        sx={{ ...styles.btnOutline, height: 26, fontSize: '0.65rem', py: 0, minWidth: 44, borderColor: alpha(palette.accent, 0.5), color: palette.accent, '&:hover': { borderColor: palette.accent, bgcolor: palette.accentLight } }}>
+                        <PercentIcon sx={{ fontSize: 14, mr: 0.3 }} /> Discount
+                      </Button>
+                    </Badge>
+                    <Button size="small" variant="outlined" onClick={() => { setPartySelected(false); setSelectedPartyId(''); }}
+                      sx={{ ...styles.btnOutline, height: 26, fontSize: '0.65rem', py: 0, minWidth: 50 }}>
+                      Change
+                    </Button>
+                  </Box>
                 </Box>
               </Box>
             </Fade>
@@ -773,7 +792,12 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
               {loadingProducts ? (
                 <Box sx={{ textAlign: 'center', py: 2 }}><CircularProgress size={24} /></Box>
               ) : (
-                searchProducts(products, productSearchQuery, 30).map(p => (
+                searchProducts(products, productSearchQuery, 30).map(p => {
+                  const inCartItem = lineItems.find(item => item.productId === p.id);
+                  const inCartQty = inCartItem?.quantity || 0;
+                  const catDiscount = selectedParty?.categoryDiscounts?.[p.category || ''] || 0;
+                  const unitPrice = parseFloat((p.price * (1 - catDiscount / 100) * (1 / 1)).toFixed(2));
+                  return (
                   <Box key={p.id} onMouseDown={(e) => {
                     // Prevent blur from closing search while clicking a product
                     e.preventDefault();
@@ -784,31 +808,55 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
                     triggerQtyPrompt(p.id);
                   }} sx={{
                     display: 'flex', alignItems: 'center', gap: 1.5,
-                    py: 1.2, px: 1.5, borderBottom: `1px solid ${palette.border}`,
-                    bgcolor: selectedProductId === p.id ? palette.primaryLight : 'transparent',
+                    py: 1.2, px: 1.5, minHeight: 58,
+                    borderBottom: `1px solid ${palette.border}`,
+                    borderLeft: inCartQty > 0 ? `4px solid ${palette.success}` : '4px solid transparent',
+                    bgcolor: inCartQty > 0 ? palette.successLight
+                      : selectedProductId === p.id ? palette.primaryLight : 'transparent',
                     cursor: 'pointer',
-                    '&:hover': { bgcolor: palette.primaryLight },
-                    '&:active': { bgcolor: palette.primaryLight },
+                    '&:hover': { bgcolor: inCartQty > 0 ? palette.successLight : palette.primaryLight },
+                    '&:active': { bgcolor: inCartQty > 0 ? palette.successLight : palette.primaryLight },
                   }}>
-                    <Avatar sx={{ width: 36, height: 36, bgcolor: palette.accentLight, color: palette.accent, fontSize: '0.8rem', fontWeight: 700 }}>
+                    <Avatar sx={{ width: 36, height: 36, flexShrink: 0, bgcolor: inCartQty > 0 ? palette.success : palette.accentLight, color: inCartQty > 0 ? palette.white : palette.accent, fontSize: '0.8rem', fontWeight: 700 }}>
                       {p.name.charAt(0).toUpperCase()}
                     </Avatar>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant="body2" fontWeight={700} noWrap sx={{ fontSize: '0.85rem' }}>
-                        {p.name}
-                      </Typography>
-                      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.2 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <Typography variant="body2" fontWeight={700} noWrap sx={{ fontSize: '0.85rem', flex: 1 }}>
+                          {p.name}
+                        </Typography>
+                        {inCartQty > 0 && (
+                          <Chip label={`Qty: ${inCartQty}`} size="small" sx={{ ...styles.chip(palette.success, palette.white), height: 20, fontSize: '0.65rem' }} />
+                        )}
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.3 }}>
                         {p.category && <Chip label={p.category} size="small" sx={{ height: 18, fontSize: '0.6rem', bgcolor: palette.surfaceAlt }} />}
                         {(p as any).stock !== undefined && (
                           <Chip label={`Stock: ${(p as any).stock}`} size="small" sx={{ height: 18, fontSize: '0.6rem', color: (p as any).stock > 0 ? palette.success : palette.danger, bgcolor: (p as any).stock > 0 ? palette.successLight : palette.dangerLight }} />
                         )}
+                        {inCartQty > 0 && (
+                          <Chip icon={<CheckCircleIcon sx={{ fontSize: 13 }} />} label="Tap to +1" size="small" sx={{ height: 18, fontSize: '0.6rem', color: palette.success, bgcolor: palette.successLight }} />
+                        )}
                       </Box>
                     </Box>
-                    <Typography variant="body2" fontWeight={800} color={palette.primary} sx={{ fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
-                      ₹{p.price}
-                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0, gap: 0.2 }}>
+                      <Typography variant="body2" fontWeight={800} color={palette.primary} sx={{ fontSize: '0.9rem', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
+                        ₹{unitPrice}
+                      </Typography>
+                      {catDiscount > 0 && (
+                        <Typography variant="caption" fontWeight={700} color={palette.success} sx={{ fontSize: '0.6rem', lineHeight: 1.2 }}>
+                          -{catDiscount}% off
+                        </Typography>
+                      )}
+                      {inCartQty > 0 && (
+                        <Typography variant="body2" fontWeight={900} color={palette.success} sx={{ fontSize: '0.85rem', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
+                          Total: ₹{(unitPrice * inCartQty).toFixed(2)}
+                        </Typography>
+                      )}
+                    </Box>
                   </Box>
-                ))
+                  );
+                })
               )}
               {!loadingProducts && products.length === 0 && (
                 <Box sx={{ textAlign: 'center', py: 2 }}>
@@ -973,8 +1021,7 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
       )}
 
       {/* --- STICKY BOTTOM BAR --- */}
-      {lineItems.length > 0 && (
-        <Box sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1100, bgcolor: palette.white, borderTop: `1px solid ${palette.border}`, boxShadow: '0 -4px 20px rgba(0,0,0,0.08)', px: 1.5, py: 1, maxWidth: 560, mx: 'auto' }}>
+      <Box sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1100, bgcolor: palette.white, borderTop: `1px solid ${palette.border}`, boxShadow: '0 -4px 20px rgba(0,0,0,0.08)', px: 1.5, py: 1, maxWidth: 560, mx: 'auto' }}>
           <Box onClick={() => setShowTotals(!showTotals)} sx={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="caption" color={palette.textSecondary} fontWeight={600} sx={{ fontSize: '0.7rem' }}>
@@ -995,13 +1042,12 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
               </Box>
             </Fade>
           )}
-          <Button variant="contained" fullWidth size="medium" onClick={handleSaveInvoice} disabled={loading}
+          <Button variant="contained" fullWidth size="medium" onClick={handleSaveInvoice} disabled={!selectedPartyId || lineItems.length === 0 || loading}
             startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <SaveIcon sx={{ fontSize: 18 }} />}
             sx={{ bgcolor: loading ? palette.textSecondary : palette.primary, borderRadius: 2.5, textTransform: 'none', fontWeight: 800, fontSize: '0.9rem', py: 1.2, boxShadow: `0 4px 16px ${alpha(palette.primary, 0.35)}`, '&:hover': { bgcolor: palette.primaryDark, boxShadow: `0 6px 20px ${alpha(palette.primary, 0.5)}` }, '&:active': { transform: 'scale(0.98)' }, '&:disabled': { bgcolor: alpha(palette.primary, 0.5) } }}>
             {loading ? (invoiceId ? 'Updating...' : 'Creating...') : `${invoiceId ? 'Update' : 'Create'} Invoice — ₹${total.toFixed(2)}`}
           </Button>
         </Box>
-      )}
 
       {/* Party Dialog */}
       <Dialog open={openPartyDialog} onClose={() => setOpenPartyDialog(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>

@@ -22,6 +22,18 @@ export interface Product {
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second
 
+/** Coerce a Firestore value into a safe finite number. Handles string prices
+ *  like "1,250", "₹500", or missing/NaN values that would otherwise render ₹NaN. */
+function toSafeNumber(value: unknown, fallback = 0): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
+  if (typeof value === 'string') {
+    // Strip currency symbols, commas, and whitespace: "₹1,250" → 1250
+    const parsed = parseFloat(value.replace(/[^\d.-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+}
+
 export function useProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,7 +91,10 @@ export function useProducts() {
           id: doc.id,
           ...productData,
           category: categoryName, // Ensure category field is populated with name
-          stock: productData.quantity || productData.stock || 0, // Handle both stock and quantity fields
+          // Normalize numeric fields so string/missing values can't produce ₹NaN
+          price: toSafeNumber(productData.price),
+          purchasePrice: toSafeNumber(productData.purchasePrice),
+          stock: toSafeNumber(productData.quantity ?? productData.stock), // Handle both stock and quantity fields
         } as Product;
       });
       

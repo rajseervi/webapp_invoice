@@ -31,6 +31,9 @@ export interface FullSearchProduct {
   code?: string;
   sku?: string;
   hsn?: string;
+  /** Description / specification text — size info is often only stored here */
+  description?: string;
+  specification?: string;
 }
 
 interface FullScreenProductSearchProps {
@@ -40,6 +43,8 @@ interface FullScreenProductSearchProps {
   loading?: boolean;
   cartItemIds: Set<string>;
   cartCount: number;
+  /** Maps productId -> quantity currently in the cart */
+  cartQuantities?: Record<string, number>;
   maxItems?: number;
   partyDiscounts?: Record<string, number>;
   onAddToCart: (product: FullSearchProduct, quantity: number) => void;
@@ -50,7 +55,7 @@ interface FullScreenProductSearchProps {
 
 export default function FullScreenProductSearch({
   open, onClose, products, loading = false, cartItemIds, cartCount,
-  maxItems = 25, partyDiscounts = {}, onAddToCart, onIncrementInCart,
+  cartQuantities = {}, maxItems = 25, partyDiscounts = {}, onAddToCart, onIncrementInCart,
   onRemoveFromCart, onCreateNew,
 }: FullScreenProductSearchProps) {
   const searchRef = useRef<HTMLInputElement>(null);
@@ -539,8 +544,17 @@ export default function FullScreenProductSearch({
                         {product.name}
                       </Typography>
                       {inCart && (
-                        <Chip icon={<CheckCircleIcon sx={{ fontSize: 13 }} />} label="In Cart" size="small" color="success"
-                          sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700 }} />
+                        <>
+                          <Chip icon={<CheckCircleIcon sx={{ fontSize: 13 }} />} label="In Cart" size="small" color="success"
+                            sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700 }} />
+                          <Chip
+                            label={`Qty: ${cartQuantities[product.id] ?? 1}`}
+                            size="small"
+                            color="success"
+                            variant="outlined"
+                            sx={{ height: 18, fontSize: '0.62rem', fontWeight: 800 }}
+                          />
+                        </>
                       )}
                     </Box>
                     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.3 }}>
@@ -571,6 +585,11 @@ export default function FullScreenProductSearch({
                     <Typography variant="body1" fontWeight={900} color="primary" sx={{ fontSize: '0.95rem', pr: 0.25, lineHeight: 1.4 }}>
                       ₹{product.price}
                     </Typography>
+                    {inCart && cartQuantities[product.id] != null && (
+                      <Typography variant="caption" fontWeight={700} color="success.main" sx={{ fontSize: '0.68rem', lineHeight: 1.3 }}>
+                        Total: ₹{(product.price * cartQuantities[product.id]).toFixed(2)}
+                      </Typography>
+                    )}
 
                     {inCart ? (
                       <Box sx={{ display: 'flex', gap: 0.5 }}>

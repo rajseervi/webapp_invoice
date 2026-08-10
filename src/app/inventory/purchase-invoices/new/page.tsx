@@ -491,6 +491,8 @@ export default function NewPurchaseInvoicePage() {
       category: p.categoryName || '',
       stock: p.quantity,
       code: p.sku || p.barcode || '',
+      description: (p as any).description ?? '',
+      specification: (p as any).specification ?? '',
     }));
   }, [products]);
 
@@ -1350,6 +1352,7 @@ export default function NewPurchaseInvoicePage() {
             loading={loading}
             cartItemIds={cartItemIds}
             cartCount={items.length}
+            cartQuantities={items.reduce((acc, item) => { acc[item.productId] = item.quantity; return acc; }, {} as Record<string, number>)}
             maxItems={MAX_ITEMS}
             onAddToCart={handleAddToCart}
             onIncrementInCart={handleIncrementInCart}

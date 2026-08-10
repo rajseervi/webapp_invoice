@@ -2610,10 +2610,14 @@ function a11yProps(index: number) {
           stock: (p as any).stock ?? (p as any).quantity,
           // Allow searching by SKU / HSN / barcode
           code: (p as any).sku ?? (p as any).barcode ?? (p as any).hsnCode ?? (p as any).sacCode ?? '',
+          // Description / specification text (sizes are often stored here)
+          description: (p as any).description ?? '',
+          specification: (p as any).specification ?? '',
         }))}
         loading={loadingProducts}
         cartItemIds={new Set(lineItems.map(item => item.productId))}
         cartCount={lineItems.length}
+        cartQuantities={lineItems.reduce((acc, item) => { acc[item.productId] = item.quantity; return acc; }, {} as Record<string, number>)}
         maxItems={25}
         partyDiscounts={(selectedParty?.categoryDiscounts || {}) as Record<string, number>}
         onAddToCart={handleAddProductToCart}
