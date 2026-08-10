@@ -115,7 +115,7 @@ const modernNavigationSections: NavSection[] = [
         // { id: 'invoices-regular', title: 'Regular Invoices', path: '/invoices/regular', icon: <FiberManualRecordIcon sx={{ fontSize: 8 }} />, category: 'secondary' },
       ]},
       // { id: 'orders', title: 'Orders', path: '/orders', icon: <ShoppingCartIcon />, category: 'primary' },
-      { id: 'purchases', title: 'Purchases', path: '/purchases', icon: <LocalShippingIcon />, category: 'primary' },
+       
     ],
   },
   {

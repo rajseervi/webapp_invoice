@@ -36,7 +36,7 @@ export default function PurchaseStatistics() {
     const fetchStatistics = async () => {
       try {
         setLoading(true);
-        const statistics = await PurchaseService.getPurchaseStatistics(userId);
+        const statistics = await PurchaseService.getPurchaseStatistics(userId ?? undefined);
         setStats(statistics);
       } catch (err) {
         console.error('Error fetching purchase statistics:', err);
@@ -77,7 +77,7 @@ export default function PurchaseStatistics() {
     <Box>
       {/* Overview Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -95,7 +95,7 @@ export default function PurchaseStatistics() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -113,7 +113,7 @@ export default function PurchaseStatistics() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -131,7 +131,7 @@ export default function PurchaseStatistics() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -152,7 +152,7 @@ export default function PurchaseStatistics() {
 
       <Grid container spacing={3}>
         {/* Monthly Purchases */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -194,7 +194,7 @@ export default function PurchaseStatistics() {
         </Grid>
 
         {/* Top Suppliers */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -235,7 +235,7 @@ export default function PurchaseStatistics() {
         </Grid>
 
         {/* Order Status Summary */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
