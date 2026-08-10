@@ -41,7 +41,8 @@ import { searchProducts } from '@/utils/productSearch';
 
 interface Party {
   id: string; name: string; email: string; phone: string; address: string;
-  categoryDiscounts: Record<string, number>;
+  // categoryDiscounts can be legacy number or new object { discount, dp }
+  categoryDiscounts: Record<string, number | { discount: number; dp?: number }>;
   productDiscounts?: Record<string, number>;
 }
 
@@ -304,7 +305,7 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
             } else {
               const party = parties.find(p => p.id === data.partyId);
               if (party) {
-                const catDiscount = party.categoryDiscounts?.[item.category || ''] || 0;
+                const { discount: catDiscount } = getCategoryDiscountDetails(party, item.category || '');
                 if (catDiscount > 0) { discount = catDiscount; discountType = 'category'; }
               }
             }
@@ -365,18 +366,34 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
     generateInvoiceNumber();
   }, [invoiceId]);
 
+  // Helper to read category discount and dp from a party's categoryDiscounts map.
+  // Supports both the legacy plain-number format (e.g. { "Pipes": 5 }) and the
+  // new object format saved by CategoryDiscountEditor (e.g. { "Pipes": { discount: 5, dp: 2 } }).
+  const getCategoryDiscountDetails = useCallback((party: Party | null, categoryName: string) => {
+    if (!party || !party.categoryDiscounts) return { discount: 0, dp: 0 };
+    const raw: any = party.categoryDiscounts[categoryName];
+    if (raw == null) return { discount: 0, dp: 0 };
+    if (typeof raw === 'number') return { discount: raw, dp: 0 };
+    if (typeof raw === 'object') {
+      const discount = typeof raw.discount === 'number' ? raw.discount : parseFloat(raw.discount) || 0;
+      const dp = typeof raw.dp === 'number' ? raw.dp : parseFloat(raw.dp) || 0;
+      return { discount: isNaN(discount) ? 0 : discount, dp: isNaN(dp) ? 0 : dp };
+    }
+    return { discount: 0, dp: 0 };
+  }, []);
+
   const calculateItemDiscounts = useCallback((item: InvoiceLineItem, party: Party | null) => {
     if (!party) return { ...item, discount: 0, discountType: 'none' as const, finalPrice: parseFloat((item.price * item.quantity).toFixed(2)) };
     const product = products.find(p => p.id === item.productId);
     if (!product) return item;
-    const catDiscount = party.categoryDiscounts[product.category] || 0;
+    const { discount: catDiscount } = getCategoryDiscountDetails(party, product.category);
     const discount = catDiscount;
     const discountType = discount > 0 ? 'category' as const : 'none' as const;
     return {
       ...item, discount, discountType,
       finalPrice: parseFloat((item.price * (1 - discount / 100) * item.quantity).toFixed(2)),
     };
-  }, [products]);
+  }, [products, getCategoryDiscountDetails]);
 
   useEffect(() => {
     if (!selectedParty) {
@@ -409,7 +426,7 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
     let discount = 0;
     let discountType: 'none' | 'category' | 'product' | 'custom' = 'none';
     if (selectedParty) {
-      const cd = selectedParty.categoryDiscounts[product.category] || 0;
+      const { discount: cd } = getCategoryDiscountDetails(selectedParty, product.category);
       if (cd > 0) { discount = cd; discountType = 'category'; }
     }
     const newItem: InvoiceLineItem = {
@@ -463,7 +480,7 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
 
   const handleRemoveItem = (index: number) => setLineItems(prev => prev.filter((_, i) => i !== index));
 
-  const handleUpdateCategoryDiscounts = async (updatedDiscounts: Record<string, number>) => {
+  const handleUpdateCategoryDiscounts = async (updatedDiscounts: Record<string, number | { discount: number; dp?: number }>) => {
     if (!selectedParty) return;
     const idx = parties.findIndex(p => p.id === selectedParty.id);
     if (idx !== -1) {
@@ -472,7 +489,7 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
     setLineItems(prev => prev.map(item => {
       const product = products.find(p => p.id === item.productId);
       if (product && updatedDiscounts.hasOwnProperty(product.category)) {
-        const d = updatedDiscounts[product.category];
+        const { discount: d } = getCategoryDiscountDetails(selectedParty, product.category);
         return {
           ...item, discount: d, discountType: 'category' as const,
           finalPrice: parseFloat((item.price * (1 - d / 100) * item.quantity).toFixed(2)),
@@ -529,7 +546,7 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
       let discount = 0;
       let discountType: 'none' | 'category' | 'product' | 'custom' = 'none';
       if (selectedParty && finalCategory) {
-        const cd = selectedParty.categoryDiscounts[finalCategory] || 0;
+        const { discount: cd } = getCategoryDiscountDetails(selectedParty, finalCategory);
         if (cd > 0) { discount = cd; discountType = 'category'; }
       }
       setLineItems(prev => [...prev, {
@@ -795,7 +812,7 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
                 searchProducts(products, productSearchQuery, 30).map(p => {
                   const inCartItem = lineItems.find(item => item.productId === p.id);
                   const inCartQty = inCartItem?.quantity || 0;
-                  const catDiscount = selectedParty?.categoryDiscounts?.[p.category || ''] || 0;
+                  const { discount: catDiscount } = getCategoryDiscountDetails(selectedParty, p.category || '');
                   const unitPrice = parseFloat((p.price * (1 - catDiscount / 100) * (1 / 1)).toFixed(2));
                   return (
                   <Box key={p.id} onMouseDown={(e) => {
