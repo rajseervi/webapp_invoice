@@ -36,23 +36,8 @@ export function redirectBasedOnRole(
     return;
   }
 
-  // Redirect based on role
-  let redirectPath = '/dashboard'; // default
-  switch (role) {
-    case 'admin':
-      redirectPath = '/admin/dashboard';
-      break;
-    case 'manager':
-      redirectPath = '/dashboard';
-      break;
-    case 'staff':
-      redirectPath = '/inventory';
-      break;
-    case 'user':
-    default:
-      redirectPath = '/dashboard';
-      break;
-  }
+  // Redirect all logged-in users to the admin dashboard
+  let redirectPath = '/admin/dashboard';
   
   console.log('Redirecting to:', redirectPath);
   
@@ -217,4 +202,3 @@ export function clearClientAuthData(): void {
     document.cookie = 'subscriptionActive=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
   }
 }
-

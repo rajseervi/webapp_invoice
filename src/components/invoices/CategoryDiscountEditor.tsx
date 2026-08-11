@@ -56,6 +56,8 @@ interface CategoryDiscountEditorProps {
   // Support legacy number or new object shape: { discount, dp }
   categoryDiscounts: Record<string, any>;
   onSave: (updatedDiscounts: Record<string, any>) => void;
+  // When false, hides the DP(+) input and DP+ chip (managed by the DP(+) setting)
+  showDp?: boolean;
 }
 
 const palette = {
@@ -107,7 +109,8 @@ const CategoryDiscountEditor: React.FC<CategoryDiscountEditorProps> = ({
   onClose,
   partyId,
   categoryDiscounts,
-  onSave
+  onSave,
+  showDp = true
 }) => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [discounts, setDiscounts] = useState<CategoryDiscount[]>([]);
@@ -198,7 +201,9 @@ const CategoryDiscountEditor: React.FC<CategoryDiscountEditorProps> = ({
 
   const handleSaveDiscount = (categoryId: string) => {
     const validDiscount = Math.min(100, Math.max(0, editValue));
-    const validDp = Math.max(0, editDpValue || 0);
+    // Preserve existing dp when the DP(+) feature is hidden
+    const currentDp = discounts.find(item => item.categoryId === categoryId)?.dp || 0;
+    const validDp = showDp ? Math.max(0, editDpValue || 0) : currentDp;
     setDiscounts(prev =>
       prev.map(item =>
         item.categoryId === categoryId ? { ...item, discount: validDiscount, dp: validDp } : item
@@ -223,7 +228,7 @@ const CategoryDiscountEditor: React.FC<CategoryDiscountEditorProps> = ({
         categoryId: category.id,
         categoryName: category.name,
         discount: category.defaultDiscount || 0,
-        dp: category.defaultDp || 0
+        dp: showDp ? (category.defaultDp || 0) : 0
       }))
     );
   };
@@ -429,22 +434,24 @@ const CategoryDiscountEditor: React.FC<CategoryDiscountEditorProps> = ({
                                               }}
                                               autoFocus
                                             />
-                                            <TextField
-                                              type="number"
-                                              size="small"
-                                              value={editDpValue}
-                                              onChange={(e) => {
-                                                let v = Number(e.target.value);
-                                                if (isNaN(v)) v = 0;
-                                                setEditDpValue(v);
-                                              }}
-                                              inputProps={{ min: 0, step: 0.5 }}
-                                              // Ensure DP field has enough width and a minWidth so the value stays fully visible
-                                              sx={{ width: { xs: '48%', sm: 128 }, minWidth: 110, ...styles.input }}
-                                              InputProps={{
-                                                endAdornment: <InputAdornment position="end" sx={{ '& p': { fontSize: '0.75rem', whiteSpace: 'nowrap' } }}>DP%</InputAdornment>,
-                                              }}
-                                            />
+                                            {showDp && (
+                                              <TextField
+                                                type="number"
+                                                size="small"
+                                                value={editDpValue}
+                                                onChange={(e) => {
+                                                  let v = Number(e.target.value);
+                                                  if (isNaN(v)) v = 0;
+                                                  setEditDpValue(v);
+                                                }}
+                                                inputProps={{ min: 0, step: 0.5 }}
+                                                // Ensure DP field has enough width and a minWidth so the value stays fully visible
+                                                sx={{ width: { xs: '48%', sm: 128 }, minWidth: 110, ...styles.input }}
+                                                InputProps={{
+                                                  endAdornment: <InputAdornment position="end" sx={{ '& p': { fontSize: '0.75rem', whiteSpace: 'nowrap' } }}>DP%</InputAdornment>,
+                                                }}
+                                              />
+                                            )}
                                             <IconButton size="small" onClick={() => handleSaveDiscount(item.categoryId)}
                                               sx={{ bgcolor: palette.success, color: palette.white, '&:hover': { bgcolor: '#059669' }, borderRadius: 1.5, width: 34, height: 34, ml: { xs: 0, sm: 0.5 } }}>
                                               <CheckCircleIcon sx={{ fontSize: 18 }} />
@@ -460,7 +467,7 @@ const CategoryDiscountEditor: React.FC<CategoryDiscountEditorProps> = ({
                         >
                           {item.discount}%
                         </Typography>
-                        {(item.dp ?? 0) > 0 && (
+                        {showDp && (item.dp ?? 0) > 0 && (
                           <Chip
                             label={`DP+ ${item.dp}%`}
                             size="small"

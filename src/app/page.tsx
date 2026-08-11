@@ -40,6 +40,14 @@ export default function HomePage() {
   };
 
   React.useEffect(() => {
+    // If user is logged in, redirect to admin dashboard
+    if (currentUser) {
+      router.push('/admin/dashboard');
+      return;
+    }
+  }, [currentUser, router]);
+
+  React.useEffect(() => {
     const handleScroll = () => {
       let currentSection: string | null = null;
       const navItems = ['features', 'demo', 'testimonials', 'cta', 'contact'];

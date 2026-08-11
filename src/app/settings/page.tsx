@@ -125,6 +125,7 @@ function SettingsPage() {
     showProductImages: true,
     enableStockAlerts: true,
     stockAlertThreshold: 10,
+    enableDpPlus: true,
     printing: DEFAULT_PRINTING_PREFERENCES,
   });
 
@@ -497,6 +498,22 @@ function SettingsPage() {
                   InputProps={{ inputProps: { min: 1 } }}
                   helperText="Alert when stock falls below this number"
                 />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={userPreferences.enableDpPlus ?? true}
+                      onChange={handleUserPreferencesChange}
+                      name="enableDpPlus"
+                    />
+                  }
+                  label="Enable DP(+) in Invoices"
+                />
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 3.5, mt: 0.5 }}>
+                  Show the DP(+) (margin on unit price) column when creating invoices.
+                  Turn off to hide it and stop applying DP(+) to invoice items.
+                </Typography>
               </Grid>
             </Grid>
           </TabPanel>

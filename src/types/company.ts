@@ -27,6 +27,9 @@ export interface UserPreferences {
   showProductImages: boolean;
   enableStockAlerts: boolean;
   stockAlertThreshold: number;
+  // DP(+) feature toggle — when disabled, the DP(+) (margin on unit price)
+  // feature is hidden and not applied while creating invoices
+  enableDpPlus?: boolean;
   // Printing preferences
   printing: PrintingPreferences;
 }

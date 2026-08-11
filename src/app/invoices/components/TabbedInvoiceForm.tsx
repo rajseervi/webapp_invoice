@@ -75,6 +75,7 @@ import {
 } from '@mui/material'; 
 import { useRouter } from 'next/navigation';
 import FullScreenProductSearch from '@/components/invoices/FullScreenProductSearch';
+import { getUserPreferences } from '@/services/settingsService';
 
 interface Party {
   id: string;
@@ -177,7 +178,8 @@ function a11yProps(index: number) {
   
   // Description column visibility
   const [showDescriptionColumn, setShowDescriptionColumn] = useState<boolean>(false);
-  const [showMargin, setShowMargin] = useState<boolean>(true);
+  // DP(+) feature enabled by user preference (defaults to enabled)
+  const [dpPlusEnabled, setDpPlusEnabled] = useState<boolean>(true);
   
   // Global DP(+) field
   const [globalDp, setGlobalDp] = useState<number | string>('');
@@ -482,8 +484,10 @@ function a11yProps(index: number) {
       discountType = 'category';
     }
     
-    // If item has no explicit margin, inherit category DP
-    const margin = (typeof item.margin === 'number' && !isNaN(item.margin)) ? item.margin : (categoryDp || 0);
+    // If item has no explicit margin, inherit category DP — only when DP(+) is enabled
+    const margin = dpPlusEnabled
+      ? ((typeof item.margin === 'number' && !isNaN(item.margin)) ? item.margin : (categoryDp || 0))
+      : 0;
 
     const gstRate = item.gstRate || 0;
     const finalPrice = item.price * (1 - discount/100) * item.quantity * (1 + gstRate / 100) + (item.price * item.quantity * margin / 100);
@@ -505,6 +509,18 @@ function a11yProps(index: number) {
     const updatedItems = lineItems.map(item => calculateItemDiscounts(item, selectedParty));
     setLineItems(updatedItems);
   }, [selectedPartyId, products, selectedParty]); // Don't include lineItems to avoid infinite loop
+
+  // Load the DP(+) preference so the feature can be hidden/disabled
+  useEffect(() => {
+    if (!userId) return;
+    getUserPreferences(userId)
+      .then(prefs => {
+        if (prefs && typeof prefs.enableDpPlus === 'boolean') {
+          setDpPlusEnabled(prefs.enableDpPlus);
+        }
+      })
+      .catch(err => console.error('Error loading DP(+) preference:', err));
+  }, [userId]);
   
   const handleOpenPartyDialog = () => {
     setNewParty({
@@ -869,8 +885,8 @@ function a11yProps(index: number) {
         discountType = 'category';
       }
 
-      // Inherit the category DP so it applies in the cart
-      margin = categoryDp || 0;
+      // Inherit the category DP so it applies in the cart (only when DP(+) is enabled)
+      margin = dpPlusEnabled ? (categoryDp || 0) : 0;
     }
     
     // Calculate the final price with discount, DP and quantity
@@ -921,7 +937,7 @@ function a11yProps(index: number) {
         discount = categoryDiscount;
         discountType = 'category';
       }
-      margin = categoryDp || 0;
+      margin = dpPlusEnabled ? (categoryDp || 0) : 0;
     }
     
     const gstRate = selectedParty?.gstRate || 0;
@@ -987,6 +1003,7 @@ function a11yProps(index: number) {
   };
 
   const handleUpdateMargin = (index: number, margin: number | string) => {
+    if (!dpPlusEnabled) return; // DP(+) disabled — ignore margin edits
     const updatedItems = lineItems.map((item, i) => {
       if (i !== index) return item;
 
@@ -1126,8 +1143,8 @@ function a11yProps(index: number) {
               productDiscount > 0 ? 'product' : (categoryDiscount > 0 ? 'category' : 'none');
             
             const gstRate = item.gstRate || 0;
-            // Apply the category DP to the item so it reflects in the cart
-            const margin = categoryDp || 0;
+            // Apply the category DP to the item so it reflects in the cart (only when DP(+) is enabled)
+            const margin = dpPlusEnabled ? (categoryDp || 0) : 0;
             const finalPrice = item.price * (1 - discount/100) * item.quantity * (1 + gstRate / 100) + (item.price * item.quantity * margin / 100);
             
             return {
@@ -1175,9 +1192,9 @@ function a11yProps(index: number) {
   const subtotal = lineItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const discountAmount = subtotal - lineItems.reduce((sum, item) => sum + item.finalPrice, 0);
   
-  // Total DP on unit price
+  // Total DP on unit price (only applies when DP(+) is enabled)
   const totalMargin = lineItems.reduce((sum, item) => {
-    const margin = typeof item.margin === 'number' ? item.margin : 0;
+    const margin = dpPlusEnabled && typeof item.margin === 'number' ? item.margin : 0;
     return sum + (item.price * item.quantity * margin / 100);
   }, 0);
   
@@ -1224,8 +1241,8 @@ function a11yProps(index: number) {
           category: item.category
         };
         
-        // Only include margin if it's a valid number
-        if (typeof item.margin === 'number' && !isNaN(item.margin)) {
+        // Only include margin if DP(+) is enabled and it's a valid number
+        if (dpPlusEnabled && typeof item.margin === 'number' && !isNaN(item.margin)) {
           itemData.margin = item.margin;
         }
         
@@ -1551,10 +1568,10 @@ function a11yProps(index: number) {
                         const discount = typeof raw === 'number' ? raw : (raw?.discount || 0);
                         const dp = typeof raw === 'number' ? 0 : (raw?.dp || 0);
                         return (
-                          (discount > 0 || dp > 0) && (
-                            <Chip 
-                              key={category} 
-                              label={`${category}: ${discount}%${dp > 0 ? ` • DP+ ${dp}%` : ''}`} 
+                          (discount > 0 || (dpPlusEnabled && dp > 0)) && (
+                            <Chip
+                              key={category}
+                              label={`${category}: ${discount}%${dpPlusEnabled && dp > 0 ? ` • DP+ ${dp}%` : ''}`}
                               size="small" 
                               color="primary" 
                               variant="outlined" 
@@ -1659,10 +1676,10 @@ function a11yProps(index: number) {
                       const discount = typeof raw === 'number' ? raw : (raw?.discount || 0);
                       const dp = typeof raw === 'number' ? 0 : (raw?.dp || 0);
                       return (
-                        (discount > 0 || dp > 0) && (
-                          <Chip 
-                            key={category} 
-                            label={`${category}: ${discount}%${dp > 0 ? ` • DP+ ${dp}%` : ''}`} 
+                        (discount > 0 || (dpPlusEnabled && dp > 0)) && (
+                          <Chip
+                            key={category}
+                            label={`${category}: ${discount}%${dpPlusEnabled && dp > 0 ? ` • DP+ ${dp}%` : ''}`}
                             size="small" 
                             color="primary" 
                             variant="outlined" 
@@ -1705,15 +1722,6 @@ function a11yProps(index: number) {
               {showDescriptionColumn ? 'Hide' : 'Show'} Description
             </Button>
 
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<PercentIcon />}
-              onClick={() => setShowMargin(!showMargin)}
-              sx={{ textTransform: 'none' }}
-            >
-              {showMargin ? 'Hide' : 'Show'} DP
-            </Button>
           </Box>
 
           {/* Maximum Items Alert */}
@@ -1749,7 +1757,7 @@ function a11yProps(index: number) {
                   )}
                   <TableCell align="right" sx={{ minWidth: 80 }}>Price</TableCell>
                   <TableCell align="right" sx={{ minWidth: 100 }}>Quantity</TableCell>
-                  {showMargin && (
+                  {dpPlusEnabled && (
                     <TableCell align="right" sx={{ minWidth: 100 }}>DP(+)</TableCell>
                   )}
                   <TableCell align="right" sx={{ minWidth: 120 }}>Discount</TableCell>
@@ -1760,7 +1768,7 @@ function a11yProps(index: number) {
               <TableBody>
                 {lineItems.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={showDescriptionColumn ? 7 : 6} align="center">
+                    <TableCell colSpan={6 + (showDescriptionColumn ? 1 : 0) + (dpPlusEnabled ? 1 : 0)} align="center">
                       No products added
                     </TableCell>
                   </TableRow>
@@ -1870,7 +1878,7 @@ function a11yProps(index: number) {
                           sx={{ width: { xs: '60px', sm: '70px' } }}
                         />
                       </TableCell>
-                      {showMargin && (
+                      {dpPlusEnabled && (
                         <TableCell align="right">
                           <TextField
                             type="number"
@@ -2129,13 +2137,15 @@ function a11yProps(index: number) {
                     <TableCell align="right">₹{discountAmount.toFixed(2)}</TableCell>
                   </TableRow>
 
-                  {/* DP Row */}
-                  <TableRow>
-                    <TableCell colSpan={showDescriptionColumn ? 5 : 4} align="right">
-                      <Typography variant="subtitle2">DP:</Typography>
-                    </TableCell>
-                    <TableCell align="right">₹{totalMargin.toFixed(2)}</TableCell>
-                  </TableRow>
+                  {/* DP Row - only shown when DP(+) is enabled in settings */}
+                  {dpPlusEnabled && (
+                    <TableRow>
+                      <TableCell colSpan={showDescriptionColumn ? 5 : 4} align="right">
+                        <Typography variant="subtitle2">DP:</Typography>
+                      </TableCell>
+                      <TableCell align="right">₹{totalMargin.toFixed(2)}</TableCell>
+                    </TableRow>
+                  )}
                   
                   {/* Transport Charges Row */}
                   <TableRow>
@@ -2301,10 +2311,10 @@ function a11yProps(index: number) {
                     const discount = typeof raw === 'number' ? raw : (raw?.discount || 0);
                     const dp = typeof raw === 'number' ? 0 : (raw?.dp || 0);
                     return (
-                      (discount > 0 || dp > 0) && (
+                      (discount > 0 || (dpPlusEnabled && dp > 0)) && (
                         <Chip
                           key={category}
-                          label={`${category}: ${discount}%${dp > 0 ? ` • DP+ ${dp}%` : ''}`}
+                          label={`${category}: ${discount}%${dpPlusEnabled && dp > 0 ? ` • DP+ ${dp}%` : ''}`}
                           color="primary"
                           variant="outlined"
                           size="small"
@@ -2517,6 +2527,7 @@ function a11yProps(index: number) {
           partyId={selectedParty.id}
           categoryDiscounts={selectedParty.categoryDiscounts}
           onSave={handleUpdateCategoryDiscounts}
+          showDp={dpPlusEnabled}
         />
       )}
       
@@ -2527,6 +2538,7 @@ function a11yProps(index: number) {
         partyId="new-party" // Temporary ID for new party
         categoryDiscounts={newParty.categoryDiscounts}
         onSave={handleUpdateNewPartyCategoryDiscounts}
+        showDp={dpPlusEnabled}
       />
       
       {/* New Category Dialog */}

@@ -167,17 +167,22 @@ const modernNavigationSections: NavSection[] = [
   //     ]},
   //   ],
   // },
-  // {
-  //   id: 'reports', title: 'Reports & Analytics', color: '#ef4444',
-  //   items: [
-  //     { id: 'reports-page', title: 'Reports', path: '/reports', icon: <AssessmentIcon />, category: 'primary', children: [
-  //       { id: 'reports-sales', title: 'Sales Reports', path: '/reports/sales', icon: <FiberManualRecordIcon sx={{ fontSize: 8 }} />, category: 'secondary' },
-  //       { id: 'reports-products', title: 'Product Reports', path: '/reports/products', icon: <FiberManualRecordIcon sx={{ fontSize: 8 }} />, category: 'secondary' },
-  //       { id: 'reports-hsn', title: 'HSN Analysis', path: '/reports/hsn-analysis', icon: <FiberManualRecordIcon sx={{ fontSize: 8 }} />, category: 'secondary' },
-  //       { id: 'reports-data-quality', title: 'Data Quality', path: '/reports/data-quality', icon: <FiberManualRecordIcon sx={{ fontSize: 8 }} />, category: 'secondary' },
-  //     ]},
-  //   ],
-  // },
+  {
+    id: 'reports', title: 'Reports & Analytics', color: '#ef4444',
+    items: [
+      {
+        id: 'reports-page',
+        title: 'Reports',
+        path: '/reports',
+        icon: <AssessmentIcon />,
+        category: 'primary',
+        children: [
+          { id: 'reports-sales', title: 'Sales Reports', path: '/reports/sales', icon: <FiberManualRecordIcon sx={{ fontSize: 8 }} />, category: 'secondary', isNew: true },
+         
+        ],
+      },
+    ],
+  },
   // {
   //   id: 'tools', title: 'Tools & Utilities', color: '#ec4899',
   //   items: [
