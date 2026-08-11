@@ -7,11 +7,12 @@ import { Button, Stack } from '@mui/material';
 import PageHeader from '@/components/PageHeader/PageHeader';
 import ExcelImportExport from '@/components/products/ExcelImportExport';
 import ExportAllProducts from '@/components/products/ExportAllProducts';
-import ExportSelectedProducts from '@/components/products/ExportSelectedProducts';
+import ExportSelectedProducts from '@/app/products/components/ExportSelectedProducts';
 import CategoryDiscountManagement from '@/components/products/CategoryDiscountManagement';
 
 import { RemoveDuplicatesButton } from '@/components/Common/RemoveDuplicatesButton';
 import BulkPriceUpdate from '@/components/products/BulkPriceUpdate';
+import AdvancedProductsTable from '@/app/products/components/AdvancedProductsTable';
 import { productService, ProductFilters, ProductSortOptions, PaginationOptions } from '@/services/productService';
 import { Product, Category } from '@/types/inventory';
 import { categoryService } from '@/services/categoryService';
@@ -42,7 +43,7 @@ import {
   CircularProgress,
   Alert,
   Checkbox,
-  Grid,
+  Grid as MuiGrid,
   Slider,
   Snackbar,
   Card,
@@ -381,8 +382,8 @@ function ProductsPage() {
           backdropFilter: 'blur(8px)',
         }}
       >
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={6} sm={4} md={2}>
+        <MuiGrid container spacing={2} alignItems="center">
+          <MuiGrid size={{ xs: 6, sm: 4, md: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Avatar sx={{ bgcolor: alpha(theme.palette.primary.main, 0.12), color: theme.palette.primary.main, width: 38, height: 38 }}>
                 <InventoryIcon fontSize="small" />
@@ -392,8 +393,8 @@ function ProductsPage() {
                 <Typography variant="caption" color="text.secondary" noWrap>Total</Typography>
               </Box>
             </Box>
-          </Grid>
-          <Grid item xs={6} sm={4} md={2}>
+          </MuiGrid>
+          <MuiGrid size={{ xs: 6, sm: 4, md: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Avatar sx={{ bgcolor: alpha(theme.palette.success.main, 0.12), color: theme.palette.success.main, width: 38, height: 38 }}>
                 <CheckCircleIcon fontSize="small" />
@@ -403,8 +404,8 @@ function ProductsPage() {
                 <Typography variant="caption" color="text.secondary" noWrap>In Stock</Typography>
               </Box>
             </Box>
-          </Grid>
-          <Grid item xs={6} sm={4} md={2}>
+          </MuiGrid>
+          <MuiGrid size={{ xs: 6, sm: 4, md: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Avatar sx={{ bgcolor: alpha(theme.palette.warning.main, 0.12), color: theme.palette.warning.main, width: 38, height: 38 }}>
                 <WarningIcon fontSize="small" />
@@ -414,8 +415,8 @@ function ProductsPage() {
                 <Typography variant="caption" color="text.secondary" noWrap>Low Stock</Typography>
               </Box>
             </Box>
-          </Grid>
-          <Grid item xs={6} sm={4} md={2}>
+          </MuiGrid>
+          <MuiGrid size={{ xs: 6, sm: 4, md: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Avatar sx={{ bgcolor: alpha(theme.palette.info.main, 0.12), color: theme.palette.info.main, width: 38, height: 38 }}>
                 <MoneyIcon fontSize="small" />
@@ -425,8 +426,8 @@ function ProductsPage() {
                 <Typography variant="caption" color="text.secondary" noWrap>Value</Typography>
               </Box>
             </Box>
-          </Grid>
-          <Grid item xs={6} sm={4} md={2}>
+          </MuiGrid>
+          <MuiGrid size={{ xs: 6, sm: 4, md: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Avatar sx={{ bgcolor: alpha(theme.palette.secondary.main, 0.12), color: theme.palette.secondary.main, width: 38, height: 38 }}>
                 <CategoryIcon fontSize="small" />
@@ -436,9 +437,9 @@ function ProductsPage() {
                 <Typography variant="caption" color="text.secondary" noWrap>Categ.</Typography>
               </Box>
             </Box>
-          </Grid>
+          </MuiGrid>
           {stats.inactiveCount > 0 && (
-            <Grid item xs={6} sm={4} md={2}>
+            <MuiGrid size={{ xs: 6, sm: 4, md: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                 <Avatar sx={{ bgcolor: alpha(theme.palette.grey[500], 0.12), color: theme.palette.grey[500], width: 38, height: 38 }}>
                   <CloseIcon fontSize="small" />
@@ -448,9 +449,9 @@ function ProductsPage() {
                   <Typography variant="caption" color="text.secondary" noWrap>Inactive</Typography>
                 </Box>
               </Box>
-            </Grid>
+            </MuiGrid>
           )}
-        </Grid>
+        </MuiGrid>
       </Paper>
 
       {/* Search + Toolbar */}
@@ -536,8 +537,8 @@ function ProductsPage() {
         {showFilters && (
           <Fade in={showFilters} timeout={300}>
             <Box sx={{ mt: 2, pt: 2, borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={3}>
+              <MuiGrid container spacing={2}>
+                <MuiGrid size={{ xs: 12, sm: 6, md: 3 }}>
                   <FormControl size="small" fullWidth>
                     <InputLabel>Category</InputLabel>
                     <Select
@@ -552,8 +553,8 @@ function ProductsPage() {
                       ))}
                     </Select>
                   </FormControl>
-                </Grid>
-                <Grid item xs={12} sm={6} md={2}>
+                </MuiGrid>
+                <MuiGrid size={{ xs: 12, sm: 6, md: 2 }}>
                   <FormControl size="small" fullWidth>
                     <InputLabel>Status</InputLabel>
                     <Select
@@ -568,8 +569,8 @@ function ProductsPage() {
                       <MenuItem value="low-stock">Low Stock</MenuItem>
                     </Select>
                   </FormControl>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3.5}>
+                </MuiGrid>
+                <MuiGrid size={{ xs: 12, sm: 6, md: 3.5 }}>
                   <Typography variant="caption" display="block" sx={{ fontWeight: 600, mb: 0.5 }}>
                     Price: ₹{priceRange[0]} – ₹{priceRange[1]}
                   </Typography>
@@ -583,8 +584,8 @@ function ProductsPage() {
                     size="small"
                     sx={{ py: 0.5 }}
                   />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3.5}>
+                </MuiGrid>
+                <MuiGrid size={{ xs: 12, sm: 6, md: 3.5 }}>
                   <Typography variant="caption" display="block" sx={{ fontWeight: 600, mb: 0.5 }}>
                     Stock: {stockRange[0]} – {stockRange[1]}
                   </Typography>
@@ -598,8 +599,8 @@ function ProductsPage() {
                     size="small"
                     sx={{ py: 0.5 }}
                   />
-                </Grid>
-              </Grid>
+                </MuiGrid>
+              </MuiGrid>
             </Box>
           </Fade>
         )}
@@ -719,184 +720,23 @@ function ProductsPage() {
       <>
       {/* Products Display */}
       {viewMode === 'table' ? (
-        <TableContainer
-          component={Paper}
+        <Paper
+          elevation={0}
           sx={{
             borderRadius: 3,
             border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
-            overflow: 'auto',
-            maxHeight: 'calc(100vh - 420px)',
-            '& .MuiTable-root': { minWidth: 750 },
+            overflow: 'hidden',
           }}
         >
-          <Table stickyHeader size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell padding="checkbox" sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
-                  <Checkbox
-                    indeterminate={selectedProducts.length > 0 && selectedProducts.length < products.length}
-                    checked={products.length > 0 && selectedProducts.length === products.length}
-                    onChange={handleSelectAllClick}
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell
-                  onClick={() => handleSort('name')}
-                  sx={{ cursor: 'pointer', fontWeight: 700, bgcolor: alpha(theme.palette.primary.main, 0.04), whiteSpace: 'nowrap' }}
-                >
-                  Name <SortIndicator field="name" />
-                </TableCell>
-                <TableCell sx={{ fontWeight: 700, bgcolor: alpha(theme.palette.primary.main, 0.04), whiteSpace: 'nowrap' }}>
-                  Category
-                </TableCell>
-                <TableCell
-                  onClick={() => handleSort('price')}
-                  sx={{ cursor: 'pointer', fontWeight: 700, bgcolor: alpha(theme.palette.primary.main, 0.04), whiteSpace: 'nowrap' }}
-                >
-                  Sell Price <SortIndicator field="price" />
-                </TableCell>
-                <TableCell sx={{ fontWeight: 700, bgcolor: alpha(theme.palette.primary.main, 0.04), whiteSpace: 'nowrap' }}>
-                  Cost Price
-                </TableCell>
-                <TableCell
-                  onClick={() => handleSort('quantity')}
-                  sx={{ cursor: 'pointer', fontWeight: 700, bgcolor: alpha(theme.palette.primary.main, 0.04), whiteSpace: 'nowrap' }}
-                >
-                  Stock <SortIndicator field="quantity" />
-                </TableCell>
-                <TableCell sx={{ fontWeight: 700, bgcolor: alpha(theme.palette.primary.main, 0.04), whiteSpace: 'nowrap' }}>
-                  Status
-                </TableCell>
-                <TableCell align="center" sx={{ fontWeight: 700, bgcolor: alpha(theme.palette.primary.main, 0.04), whiteSpace: 'nowrap' }}>
-                  Actions
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
-                    <CircularProgress size={32} />
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                      Loading products...
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              ) : productsWithCategoryData.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
-                    <InventoryIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
-                    <Typography variant="h6" color="text.secondary" gutterBottom>
-                      No products found
-                    </Typography>
-                    <Typography variant="body2" color="text.disabled">
-                      {activeFiltersCount > 0
-                        ? 'Try adjusting your filters'
-                        : 'Add your first product to get started'}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                productsWithCategoryData.map((product) => (
-                  <TableRow
-                    key={product.id}
-                    hover
-                    selected={selectedProductsSet.has(product.id!)}
-                    sx={{
-                      backgroundColor: selectedProductsSet.has(product.id!)
-                        ? alpha(theme.palette.primary.main, 0.06)
-                        : 'transparent',
-                      '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.03) },
-                      '&:last-child td': { borderBottom: 0 },
-                    }}
-                  >
-                    <TableCell padding="checkbox">
-                      <Checkbox
-                        checked={selectedProductsSet.has(product.id!)}
-                        onChange={() => handleSelectClick(product.id!)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={600} noWrap sx={{ maxWidth: 180 }}>
-                        {product.name}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={product.categoryName}
-                        size="small"
-                        variant="outlined"
-                        sx={{ borderRadius: 1, fontSize: '0.7rem', height: 22 }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={600} noWrap>
-                        ₹{(parseFloat(product.price as any) || 0).toFixed(2)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary" noWrap>
-                        ₹{(parseFloat(product.purchasePrice as any) || 0).toFixed(2)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 130 }}>
-                        <Typography
-                          variant="body2"
-                          fontWeight={600}
-                          sx={{
-                            color: (product.quantity || 0) < (product.reorderPoint || 10)
-                              ? theme.palette.warning.main
-                              : theme.palette.success.main,
-                            minWidth: 28,
-                          }}
-                        >
-                          {product.quantity}
-                        </Typography>
-                        <LinearProgress
-                          variant="determinate"
-                          value={Math.min((product.quantity! / Math.max(product.reorderPoint || 50, 1)) * 100, 100)}
-                          sx={{
-                            flex: 1,
-                            height: 5,
-                            borderRadius: 3,
-                            backgroundColor: alpha(theme.palette.divider, 0.15),
-                            '& .MuiLinearProgress-bar': {
-                              borderRadius: 3,
-                              backgroundColor: (product.quantity || 0) < (product.reorderPoint || 10)
-                                ? theme.palette.warning.main
-                                : theme.palette.success.main,
-                            },
-                          }}
-                        />
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={product.status}
-                        color={product.status === 'Low Stock' ? 'warning' : product.status === 'In Stock' ? 'success' : 'default'}
-                        size="small"
-                        variant="outlined"
-                        sx={{ borderRadius: 1, fontSize: '0.7rem', height: 22, fontWeight: 600 }}
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
-                        <IconButton onClick={() => handleEditProduct(product)} size="small" color="primary" sx={{ p: 0.75 }}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton onClick={() => handleDeleteProduct(product.id!)} size="small" color="error" sx={{ p: 0.75 }}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
+          <AdvancedProductsTable
+            products={products as Product[]}
+            categories={categories}
+            loading={loading}
+            onEdit={handleEditProduct}
+            onDelete={handleDeleteProduct}
+            onSelectionChange={(ids) => setSelectedProductsSet(new Set(ids))}
+          />
+        </Paper>
       ) : (
         /* Card Grid View */
         <Box>
@@ -917,9 +757,9 @@ function ProductsPage() {
               </Typography>
             </Paper>
           ) : (
-            <Grid container spacing={2}>
+            <MuiGrid container spacing={2}>
               {productsWithCategoryData.map((product) => (
-                <Grid item xs={12} sm={6} md={4} lg={3} key={product.id}>
+                <MuiGrid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={product.id}>
                   <Card
                     sx={{
                       height: '100%',
@@ -1037,33 +877,35 @@ function ProductsPage() {
                       </Box>
                     </Box>
                   </Card>
-                </Grid>
+                </MuiGrid>
               ))}
-            </Grid>
+            </MuiGrid>
           )}
         </Box>
       )}
 
-      {/* Pagination */}
-      <Paper
-        elevation={0}
-        sx={{
-          mt: 2,
-          borderRadius: 3,
-          border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
-          overflow: 'hidden',
-        }}
-      >
-        <TablePagination
-          rowsPerPageOptions={[10, 25, 50, 100]}
-          component="div"
-          count={totalCount}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-        />
-      </Paper>
+      {/* Pagination — hidden in table view; DataGrid renders its own */}
+      {viewMode === 'cards' && (
+        <Paper
+          elevation={0}
+          sx={{
+            mt: 2,
+            borderRadius: 3,
+            border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
+            overflow: 'hidden',
+          }}
+        >
+          <TablePagination
+            rowsPerPageOptions={[10, 25, 50, 100]}
+            component="div"
+            count={totalCount}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+          />
+        </Paper>
+      )}
       </>
       ) : (
         <Paper
@@ -1108,7 +950,7 @@ function ProductsPage() {
               name="categoryId"
               value={newProductData.categoryId || ''}
               label="Category"
-              onChange={handleInputChange}
+              onChange={(e) => setNewProductData({ ...newProductData, categoryId: e.target.value })}
             >
               {categories.map(c => (
                 <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
