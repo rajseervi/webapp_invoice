@@ -9,6 +9,8 @@ import {
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon,
   Receipt as ReceiptIcon,
   Print as PrintIcon,
   Edit as EditIcon,
@@ -69,6 +71,7 @@ export default function MobileInvoiceDetail() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
   const [copies, setCopies] = useState(1);
+  const [adjacentInvoices, setAdjacentInvoices] = useState<{ previous: string | null; next: string | null }>({ previous: null, next: null });
 
   const fetchInvoice = useCallback(async () => {
     try {
@@ -76,6 +79,10 @@ export default function MobileInvoiceDetail() {
       const data = await SimpleInvoiceService.getInvoiceById(id as string);
       if (!data) { setError('Invoice not found'); return; }
       setInvoice(data);
+
+      // Fetch adjacent invoice IDs for navigation
+      const adjacent = await SimpleInvoiceService.getAdjacentInvoices(id as string);
+      setAdjacentInvoices(adjacent);
     } catch { setError('Failed to load invoice'); }
     finally { setLoading(false); }
   }, [id]);
@@ -139,7 +146,7 @@ export default function MobileInvoiceDetail() {
       {error && <Alert severity="error" sx={{ mx: 1, mt: 1 }} onClose={() => setError(null)}>{error}</Alert>}
 
       {/* --- HEADER --- */}
-      <Box sx={{ px: 1.5, pt: 2, pb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ px: 1.5, pt: 2, pb: 1.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
         <IconButton onClick={() => router.push('/invoices')} sx={{ color: palette.text }}>
           <ArrowBackIcon />
         </IconButton>
@@ -148,6 +155,24 @@ export default function MobileInvoiceDetail() {
             Invoice Details
           </Typography>
         </Box>
+        <IconButton
+          component="button"
+          disabled={!adjacentInvoices.previous}
+          onClick={() => adjacentInvoices.previous && router.push(`/invoices/${adjacentInvoices.previous}`)}
+          sx={{ color: adjacentInvoices.previous ? palette.primary : palette.textSecondary, bgcolor: palette.primaryLight, borderRadius: 1.5, '&:disabled': { bgcolor: palette.surfaceAlt } }}
+          aria-label="Previous invoice"
+        >
+          <ChevronLeftIcon sx={{ fontSize: 20 }} />
+        </IconButton>
+        <IconButton
+          component="button"
+          disabled={!adjacentInvoices.next}
+          onClick={() => adjacentInvoices.next && router.push(`/invoices/${adjacentInvoices.next}`)}
+          sx={{ color: adjacentInvoices.next ? palette.primary : palette.textSecondary, bgcolor: palette.primaryLight, borderRadius: 1.5, '&:disabled': { bgcolor: palette.surfaceAlt } }}
+          aria-label="Next invoice"
+        >
+          <ChevronRightIcon sx={{ fontSize: 20 }} />
+        </IconButton>
         <IconButton onClick={() => setPrintOpen(true)} sx={{ color: palette.primary, bgcolor: palette.primaryLight, borderRadius: 1.5 }}>
           <PrintIcon />
         </IconButton>

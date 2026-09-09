@@ -413,6 +413,33 @@ export class SimpleInvoiceService {
   }
 
   /**
+   * Get adjacent invoices for navigation (previous and next)
+   * Invoices are sorted by createdAt desc (newest first)
+   * "previous" = newer invoice (appears before in list)
+   * "next" = older invoice (appears after in list)
+   */
+  static async getAdjacentInvoices(
+    currentInvoiceId: string
+  ): Promise<{ previous: string | null; next: string | null }> {
+    try {
+      const invoices = await this.getInvoices({});
+      const currentIndex = invoices.findIndex(inv => inv.id === currentInvoiceId);
+
+      if (currentIndex === -1) {
+        return { previous: null, next: null };
+      }
+
+      const previous = currentIndex > 0 ? invoices[currentIndex - 1].id || null : null;
+      const next = currentIndex < invoices.length - 1 ? invoices[currentIndex + 1].id || null : null;
+
+      return { previous, next };
+    } catch (error) {
+      console.error('Error getting adjacent invoices:', error);
+      return { previous: null, next: null };
+    }
+  }
+
+  /**
    * Get invoice statistics
    */
   static async getInvoiceStatistics(

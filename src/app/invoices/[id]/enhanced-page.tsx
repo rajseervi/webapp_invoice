@@ -48,6 +48,8 @@ import {
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon,
   Edit as EditIcon,
   Receipt as ReceiptIcon,
   Print as PrintIcon,
@@ -369,6 +371,7 @@ export default function EnhancedInvoiceDetailPage() {
   const [activeTab, setActiveTab] = useState(0);
   const [relatedInvoices, setRelatedInvoices] = useState<Invoice[]>([]);
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
+  const [adjacentInvoices, setAdjacentInvoices] = useState<{ previous: string | null; next: string | null }>({ previous: null, next: null });
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -407,10 +410,13 @@ export default function EnhancedInvoiceDetailPage() {
       setInvoice(invoiceData);
       
       // Fetch related data in parallel
-      await Promise.all([
+      const [adjacentData] = await Promise.all([
+        SimpleInvoiceService.getAdjacentInvoices(id as string),
         fetchRelatedInvoices(invoiceData.partyId),
         fetchPaymentHistory(invoiceData.id!)
       ]);
+      
+      setAdjacentInvoices(adjacentData);
       
     } catch (err) {
       console.error('Error fetching invoice:', err);
@@ -578,25 +584,76 @@ export default function EnhancedInvoiceDetailPage() {
             mb: 2
           }}>
             <Box>
-              <Button
-                component={Link}
-                href="/invoices"
-                startIcon={<ArrowBackIcon />}
-                variant="outlined"
-                size="small"
-                sx={{
-                  color: 'white',
-                  borderColor: 'rgba(255,255,255,0.3)',
-                  mb: 1.5,
-                  fontSize: isMobile ? '0.75rem' : undefined,
-                  '&:hover': {
-                    borderColor: 'white',
-                    bgcolor: 'rgba(255,255,255,0.1)'
-                  }
-                }}
-              >
-                Back
-              </Button>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                <Button
+                  component={Link}
+                  href="/invoices"
+                  startIcon={<ArrowBackIcon />}
+                  variant="outlined"
+                  size="small"
+                  sx={{
+                    color: 'white',
+                    borderColor: 'rgba(255,255,255,0.3)',
+                    fontSize: isMobile ? '0.75rem' : undefined,
+                    '&:hover': {
+                      borderColor: 'white',
+                      bgcolor: 'rgba(255,255,255,0.1)'
+                    }
+                  }}
+                >
+                  Back
+                </Button>
+                <Button
+                  component={Link}
+                  href={adjacentInvoices.previous ? `/invoices/${adjacentInvoices.previous}` : '/invoices'}
+                  startIcon={<ChevronLeftIcon />}
+                  variant="outlined"
+                  size="small"
+                  disabled={!adjacentInvoices.previous}
+                  sx={{
+                    color: 'white',
+                    borderColor: 'rgba(255,255,255,0.3)',
+                    fontSize: isMobile ? '0.75rem' : undefined,
+                    minWidth: isMobile ? 36 : undefined,
+                    px: isMobile ? 1 : undefined,
+                    '&:hover': {
+                      borderColor: 'white',
+                      bgcolor: 'rgba(255,255,255,0.1)'
+                    },
+                    '&.Mui-disabled': {
+                      color: 'rgba(255,255,255,0.3)',
+                      borderColor: 'rgba(255,255,255,0.1)'
+                    }
+                  }}
+                >
+                  Previous
+                </Button>
+                <Button
+                  component={Link}
+                  href={adjacentInvoices.next ? `/invoices/${adjacentInvoices.next}` : '/invoices'}
+                  endIcon={<ChevronRightIcon />}
+                  variant="outlined"
+                  size="small"
+                  disabled={!adjacentInvoices.next}
+                  sx={{
+                    color: 'white',
+                    borderColor: 'rgba(255,255,255,0.3)',
+                    fontSize: isMobile ? '0.75rem' : undefined,
+                    minWidth: isMobile ? 36 : undefined,
+                    px: isMobile ? 1 : undefined,
+                    '&:hover': {
+                      borderColor: 'white',
+                      bgcolor: 'rgba(255,255,255,0.1)'
+                    },
+                    '&.Mui-disabled': {
+                      color: 'rgba(255,255,255,0.3)',
+                      borderColor: 'rgba(255,255,255,0.1)'
+                    }
+                  }}
+                >
+                  Next
+                </Button>
+              </Box>
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: isMobile ? 1.5 : 2 }}>
                 <Zoom in timeout={1000}>
