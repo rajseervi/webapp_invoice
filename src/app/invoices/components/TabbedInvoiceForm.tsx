@@ -33,6 +33,7 @@ import {
   Tooltip,
   Badge,
   Checkbox,
+  FormControlLabel,
   ListItemText // Import ListItemText
 } from '@mui/material';
 import { 
@@ -49,7 +50,8 @@ import {
   Percent as PercentIcon,
   Edit as EditIcon,
   Check as CheckIcon,
-  Description as DescriptionIcon
+  Description as DescriptionIcon,
+  Search as SearchIcon
 } from '@mui/icons-material';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, orderBy, doc, getDoc, updateDoc, writeBatch, increment } from 'firebase/firestore';
 import { db } from '@/firebase/config';
@@ -188,8 +190,8 @@ function a11yProps(index: number) {
   const [dpCategorySelection, setDpCategorySelection] = useState<string>('All Categories');
   const dpCategories = ['All Categories', 'Product', 'Service', 'Discount', 'Shipping', 'Other'];
   
-  // Product list visibility
-  const [showProductList, setShowProductList] = useState<boolean>(true);
+  // Unlimited items mode - when enabled, no max item limit
+  const [unlimitedItems, setUnlimitedItems] = useState<boolean>(false);
   
   // Full-screen product search dialog
   const [openFullScreenSearch, setOpenFullScreenSearch] = useState<boolean>(false);
@@ -712,7 +714,7 @@ function a11yProps(index: number) {
       errors.category = 'Custom category cannot be empty';
     }
     
-    if (lineItems.length >= 25) {
+    if (!unlimitedItems && lineItems.length >= 25) {
       errors.general = 'Maximum 25 items allowed per invoice. Remove some items first.';
     }
     
@@ -859,8 +861,8 @@ function a11yProps(index: number) {
   };  const handleAddProduct = () => {
     if (!selectedProductId) return;
     
-    // Check if we've reached the maximum limit of 25 items
-    if (lineItems.length >= 25) {
+    // Check if we've reached the maximum limit of 25 items (unless unlimited items enabled)
+    if (!unlimitedItems && lineItems.length >= 25) {
       setWarningMessage('Maximum 25 items allowed per invoice. Please remove some items to add new ones.');
       return;
     }
@@ -917,7 +919,7 @@ function a11yProps(index: number) {
   
   // Add a product to the cart from the full-screen search (appends to bottom)
   const handleAddProductToCart = (product: { id: string; name: string; price: number; category?: string; stock?: number; quantity?: number }, quantity: number) => {
-    if (lineItems.length >= 25) {
+    if (!unlimitedItems && lineItems.length >= 25) {
       setWarningMessage('Maximum 25 items allowed per invoice. Please remove some items to add new ones.');
       return;
     }
@@ -1373,6 +1375,34 @@ function a11yProps(index: number) {
     setActiveTab(prev => prev - 1);
   };
 
+  // ─── Memoized full-screen search props ─────────────────────────────────────
+  // The products array is recreated here on every render, which invalidates the
+  // WeakMap caches inside searchProducts() (keyed on array reference). Mapping
+  // and memoizing it keeps those caches warm so the full-screen dialog opens
+  // and searches instantly instead of re-scanning the whole catalog per keystroke.
+  const fullSearchProducts = useMemo(() => {
+    return products.map(p => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      category: p.category,
+      stock: (p as any).stock ?? (p as any).quantity,
+      // Allow searching by SKU / HSN / barcode
+      code: (p as any).sku ?? (p as any).barcode ?? (p as any).hsnCode ?? (p as any).sacCode ?? '',
+      // Description / specification text (sizes are often stored here)
+      description: (p as any).description ?? '',
+      specification: (p as any).specification ?? '',
+    }));
+  }, [products]);
+
+  // These Sets/Records are also recreated on every render. Stable references
+  // prevent the full-screen search from re-rendering 100+ rows on each keystroke.
+  const cartItemIds = useMemo(() => new Set(lineItems.map(item => item.productId)), [lineItems]);
+  const cartQuantities = useMemo(() => {
+    return lineItems.reduce((acc, item) => { acc[item.productId] = item.quantity; return acc; }, {} as Record<string, number>);
+  }, [lineItems]);
+  const partyDiscounts = useMemo(() => (selectedParty?.categoryDiscounts || {}) as Record<string, number>, [selectedParty]);
+
   return (
     <Box sx={{ width: '100%' }}>
       {error && (
@@ -1601,131 +1631,197 @@ function a11yProps(index: number) {
         
         {/* Products Tab */}
         <TabPanel value={activeTab} index={1}>
-          {/* Selected Party Display */}
+          {/* Selected Party Display - Compact Bar */}
           {selectedParty && (
             <Box sx={{ 
-              mb: 2, 
-              p: 2, 
+              mb: 1.5, 
+              p: 1.5, 
+              px: 2,
               bgcolor: 'primary.50', 
-              borderRadius: 1,
+              borderRadius: 2,
               border: '1px solid',
-              borderColor: 'primary.200'
+              borderColor: 'primary.200',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              flexWrap: 'wrap'
             }}>
-              <Typography variant="subtitle2" color="primary.main" sx={{ fontWeight: 600 }}>
-                📋 Invoice for: {selectedParty.name}
-              </Typography>
-              {selectedParty.address && (
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  {selectedParty.address}
+              <Box sx={{ 
+                width: 36, height: 36, 
+                borderRadius: '50%', 
+                bgcolor: 'primary.main', 
+                color: 'white',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 700, fontSize: '1rem', flexShrink: 0
+              }}>
+                {selectedParty.name.charAt(0).toUpperCase()}
+              </Box>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="subtitle2" color="primary.main" sx={{ fontWeight: 700, fontSize: '0.9rem' }}>
+                  {selectedParty.name}
                 </Typography>
-              )}
-              {(selectedParty.phone || selectedParty.email) && (
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  {selectedParty.phone && selectedParty.phone}
-                  {selectedParty.phone && selectedParty.email && ' • '}
-                  {selectedParty.email && selectedParty.email}
+                {(selectedParty.phone || selectedParty.email) && (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.75rem' }}>
+                    {[selectedParty.phone, selectedParty.email].filter(Boolean).join(' • ')}
+                  </Typography>
+                )}
+              </Box>
+              {selectedParty.address && (
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  📍 {selectedParty.address}
                 </Typography>
               )}
             </Box>
           )}
 
-    {/* Category Discounts Section */}
-          {selectedPartyId && (
-            <Box sx={{ mt: 3, mb: 2 }}>
-              <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                bgcolor: 'background.paper', 
-                p: 2, 
-                borderRadius: 1,
-                border: '1px dashed',
-                borderColor: 'divider'
-              }}>
-                <Typography variant="subtitle1" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <PercentIcon color="primary" fontSize="small" />
-                  Category Discounts Configuration
-                </Typography>
-                <Tooltip title="Set discount percentages for product categories for this party">
-                  <Badge 
-                    badgeContent={selectedParty ? Object.keys(selectedParty.categoryDiscounts).length : 0} 
-                    color="primary"
-                    showZero
-                    sx={{ '& .MuiBadge-badge': { right: -3, top: 3 } }}
+          {/* Add Products Panel - Top of tab */}
+          <Box sx={{ mb: 2, p: 2, bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <Box sx={{ flex: 1, minWidth: 220 }}>
+                {productsError ? (
+                  <Alert 
+                    severity="error" 
+                    action={
+                      <Button 
+                        color="inherit" 
+                        size="small" 
+                        onClick={() => { refetchProducts(); }}
+                      >
+                        Retry
+                      </Button>
+                    }
                   >
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={() => setOpenCategoryDiscountEditor(true)}
-                      startIcon={<PercentIcon />}
-                      color="primary"
-                    >
-                      Edit Category Discounts
-                    </Button>
-                  </Badge>
+                    {productsError}
+                  </Alert>
+                ) : (
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    size="large"
+                    fullWidth
+                    onClick={() => setOpenFullScreenSearch(true)}
+                    startIcon={<SearchIcon />}
+                    disabled={!unlimitedItems && lineItems.length >= 25}
+                    sx={{ py: 1.4, fontSize: '0.95rem', textTransform: 'none', fontWeight: 700, borderRadius: 2 }}
+                  >
+                    🔍 Add Products ({lineItems.length}{unlimitedItems ? '' : '/25'})
+                  </Button>
+                )}
+              </Box>
+              <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={() => handleOpenProductDialog()}
+                disabled={!unlimitedItems && lineItems.length >= 25}
+                sx={{ textTransform: 'none', whiteSpace: 'nowrap', height: { xs: 'auto', sm: 48 }, px: { xs: 1, sm: 2 }, fontSize: '0.85rem' }}
+                title={!unlimitedItems && lineItems.length >= 25 ? 'Maximum 25 items allowed per invoice' : ''}
+              >
+                New Product {!unlimitedItems && lineItems.length >= 25 ? '(Max Reached)' : ''}
+              </Button>
+            </Box>
+          </Box>
+
+    {/* Category Discounts Section - Compact */}
+          {selectedPartyId && (
+            <Box sx={{ mb: 2, p: 1.5, px: 2, bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 600 }}>
+                  <PercentIcon color="primary" fontSize="small" />
+                  Category Discounts
+                </Typography>
+                <Box sx={{ flex: 1 }} />
+                <Tooltip title="Set discount percentages for product categories for this party">
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setOpenCategoryDiscountEditor(true)}
+                    startIcon={<PercentIcon />}
+                    color="primary"
+                    sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.5 }}
+                  >
+                    Edit ({selectedParty ? Object.keys(selectedParty.categoryDiscounts).length : 0})
+                  </Button>
                 </Tooltip>
               </Box>
               
+              {/* Show Selected Discount Items */}
               {selectedParty && Object.keys(selectedParty.categoryDiscounts).length > 0 && (
-                <Box sx={{ mt: 2, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Active Category Discounts:
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {Object.entries(selectedParty.categoryDiscounts).map(([category, raw]) => {
-                      const discount = typeof raw === 'number' ? raw : (raw?.discount || 0);
-                      const dp = typeof raw === 'number' ? 0 : (raw?.dp || 0);
-                      return (
-                        (discount > 0 || (dpPlusEnabled && dp > 0)) && (
-                          <Chip
-                            key={category}
-                            label={`${category}: ${discount}%${dpPlusEnabled && dp > 0 ? ` • DP+ ${dp}%` : ''}`}
-                            size="small" 
-                            color="primary" 
-                            variant="outlined" 
-                          />
-                        )
-                      );
-                    })}
-                  </Box>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+                  {Object.entries(selectedParty.categoryDiscounts).map(([category, raw]) => {
+                    const { discount, dp } = getCategoryDiscountDetails(selectedParty, category);
+                    if (discount <= 0 && (!dp || dp <= 0)) return null;
+                    return (
+                      <Chip 
+                        key={category} 
+                        label={dp && dp > 0 ? `${category}: ${discount}% (DP+${dp}%)` : `${category}: ${discount}%`} 
+                        size="small" 
+                        color="primary" 
+                        variant="outlined" 
+                      />
+                    );
+                  })}
                 </Box>
               )}
             </Box>
           )}
           
           {/* Apply DP(+) to All Products section hidden per request */}
-          {/* Items Header with Count and Description Toggle */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {/* Items Header with Count, Totals and Description Toggle */}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
               <Typography variant="h6" component="h3">
                 Invoice Items
               </Typography>
               <Chip 
-                label={`${lineItems.length}/25 items`}
-                color={lineItems.length >= 25 ? 'error' : lineItems.length >= 22 ? 'warning' : 'primary'}
+                label={unlimitedItems ? `${lineItems.length} items` : `${lineItems.length}/25 items`}
+                color={!unlimitedItems && lineItems.length >= 25 ? 'error' : !unlimitedItems && lineItems.length >= 22 ? 'warning' : 'primary'}
                 size="small"
                 variant="outlined"
               />
-              {lineItems.length >= 22 && (
+              {!unlimitedItems && lineItems.length >= 22 && (
                 <Typography variant="caption" color="warning.main">
                   {lineItems.length >= 25 ? 'Maximum limit reached' : `${25 - lineItems.length} items remaining`}
                 </Typography>
               )}
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={unlimitedItems}
+                    onChange={(e) => setUnlimitedItems(e.target.checked)}
+                    size="small"
+                    color="primary"
+                  />
+                }
+                label={
+                  <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>
+                    Unlimited items
+                  </Typography>
+                }
+                sx={{ ml: 0.5, mr: 1 }}
+              />
             </Box>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<DescriptionIcon />}
-              onClick={() => setShowDescriptionColumn(!showDescriptionColumn)}
-              sx={{ textTransform: 'none' }}
-            >
-              {showDescriptionColumn ? 'Hide' : 'Show'} Description
-            </Button>
-
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<DescriptionIcon />}
+                onClick={() => setShowDescriptionColumn(!showDescriptionColumn)}
+                sx={{ textTransform: 'none' }}
+              >
+                {showDescriptionColumn ? 'Hide' : 'Show'} Description
+              </Button>
+              <Chip
+                label={`Total: ₹${total}`}
+                color="primary"
+                variant="filled"
+                size="small"
+                sx={{ fontWeight: 700, fontSize: '0.85rem' }}
+              />
+            </Box>
           </Box>
 
           {/* Maximum Items Alert */}
-          {lineItems.length >= 18 && (
+          {!unlimitedItems && lineItems.length >= 18 && (
             <Alert 
               severity={lineItems.length >= 25 ? "error" : "warning"} 
               sx={{ mb: 2 }}
@@ -1926,102 +2022,6 @@ function a11yProps(index: number) {
               </TableBody>
             </Table>
           </TableContainer>
-          
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: { xs: 'column', sm: 'row' }, 
-            gap: 2, 
-            mb: 3,
-            alignItems: 'flex-start'
-          }}>
-
-          
-
-            {productsError ? (
-              <Box sx={{ width: '100%' }}>
-                <Alert 
-                  severity="error" 
-                  action={
-                    <Button 
-                      color="inherit" 
-                      size="small" 
-                      onClick={() => {
-                        refetchProducts();
-                      }}
-                    >
-                      Retry
-                    </Button>
-                  }
-                  sx={{ mb: 2 }}
-                >
-                  {productsError}
-                </Alert>
-                <Button
-                  variant="outlined"
-                  startIcon={<AddIcon />}
-                  onClick={() => handleOpenProductDialog()}
-                  disabled={lineItems.length >= 25}
-                  fullWidth
-                  title={lineItems.length >= 25 ? 'Maximum 25 items allowed per invoice' : ''}
-                >
-                  Create New Product Manually {lineItems.length >= 25 ? '(Max 25 reached)' : ''}
-                </Button>
-              </Box>
-            ) : showProductList ? (
-              <Box sx={{ width: '100%' }}>
-                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mb: 0.5 }}>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      size="large"
-                      fullWidth
-                      onClick={() => setOpenFullScreenSearch(true)}
-                      startIcon={<ShoppingCartIcon />}
-                      disabled={lineItems.length >= 25}
-                      sx={{ py: 1.5, fontSize: '0.95rem', textTransform: 'none', fontWeight: 800, borderRadius: 2 }}
-                    >
-                      🔍 Search Products to Add to Invoice ({lineItems.length}/25)
-                    </Button>
-                  </Box>
-                  <Button
-                    variant="outlined"
-                    startIcon={<AddIcon />}
-                    onClick={() => handleOpenProductDialog()}
-                    disabled={lineItems.length >= 25}
-                    title={lineItems.length >= 25 ? 'Maximum 25 items allowed per invoice' : ''}
-                    sx={{ textTransform: 'none', whiteSpace: 'nowrap', alignSelf: 'flex-start', mt: 0.5 }}
-                  >
-                    New Product
-                  </Button>
-                </Box>
-              </Box>
-            ) : (
-              <Box sx={{ width: '100%', display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  startIcon={<AddIcon />}
-                  onClick={() => setShowProductList(true)}
-                  sx={{ textTransform: 'none' }}
-                >
-                  + Add More Products
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<AddIcon />}
-                  onClick={() => handleOpenProductDialog()}
-                  disabled={lineItems.length >= 25}
-                  title={lineItems.length >= 25 ? 'Maximum 25 items allowed per invoice' : ''}
-                  sx={{ textTransform: 'none' }}
-                >
-                  Create New Product {lineItems.length >= 25 ? '(Max 25 reached)' : ''}
-                </Button>
-              </Box>
-            )}
-          </Box>
-
-      
           
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
             <Button
@@ -2444,12 +2444,12 @@ function a11yProps(index: number) {
                 <Button
                   variant="outlined"
                   startIcon={<AddIcon />}
-                  onClick={() => setOpenCategoryDialog(true)}
-                  disabled={useCustomCategory || creatingProduct}
-                  sx={{ minWidth: 'auto', whiteSpace: 'nowrap', mt: 1 }}
-                  size="small"
+                  onClick={() => handleOpenProductDialog()}
+                  disabled={!unlimitedItems && lineItems.length >= 25}
+                  title={!unlimitedItems && lineItems.length >= 25 ? 'Maximum 25 items allowed per invoice' : ''}
+                  sx={{ textTransform: 'none' }}
                 >
-                  New Category
+                  Create New Product {!unlimitedItems && lineItems.length >= 25 ? '(Max 25 reached)' : ''}
                 </Button>
               </Box>
               
@@ -2614,24 +2614,13 @@ function a11yProps(index: number) {
       <FullScreenProductSearch
         open={openFullScreenSearch}
         onClose={() => setOpenFullScreenSearch(false)}
-        products={products.map(p => ({
-          id: p.id,
-          name: p.name,
-          price: p.price,
-          category: p.category,
-          stock: (p as any).stock ?? (p as any).quantity,
-          // Allow searching by SKU / HSN / barcode
-          code: (p as any).sku ?? (p as any).barcode ?? (p as any).hsnCode ?? (p as any).sacCode ?? '',
-          // Description / specification text (sizes are often stored here)
-          description: (p as any).description ?? '',
-          specification: (p as any).specification ?? '',
-        }))}
+        products={fullSearchProducts}
         loading={loadingProducts}
-        cartItemIds={new Set(lineItems.map(item => item.productId))}
+        cartItemIds={cartItemIds}
         cartCount={lineItems.length}
-        cartQuantities={lineItems.reduce((acc, item) => { acc[item.productId] = item.quantity; return acc; }, {} as Record<string, number>)}
-        maxItems={25}
-        partyDiscounts={(selectedParty?.categoryDiscounts || {}) as Record<string, number>}
+        cartQuantities={cartQuantities}
+        maxItems={unlimitedItems ? Number.MAX_SAFE_INTEGER : 25}
+        partyDiscounts={partyDiscounts}
         onAddToCart={handleAddProductToCart}
         onIncrementInCart={handleIncrementInCart}
         onRemoveFromCart={handleRemoveFromCart}

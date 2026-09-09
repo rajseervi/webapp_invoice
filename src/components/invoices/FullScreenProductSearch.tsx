@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useRef, useState, useEffect, useCallback, useDeferredValue } from 'react';
 import {
   Dialog, AppBar, Toolbar, IconButton, Typography, Box, TextField,
   List, ListItem, ListItemAvatar, Avatar, Chip, Button, CircularProgress,
@@ -17,8 +17,15 @@ import {
 } from '@mui/icons-material';
 import { searchProducts, normalizeTerm } from '@/utils/productSearch';
 
-// How many matching products to render in the list
-const MAX_VISIBLE = 250;
+// How many matching products to render in the list. Lowered from 250 → 150
+// because each row renders a Qty TextField + buttons + chips — 250 live DOM
+// rows on mobile is what made the dialog feel heavy/slow to open.
+const MAX_VISIBLE = 150;
+// Only render the first N rows initially; the rest appear as the user types.
+// This keeps the initial paint cheap so the dialog opens instantly.
+const INITIAL_RENDER_COUNT = 50;
+// Page size for the "Show more" progressive render button.
+const RENDER_PAGE_SIZE = 50;
 
 export interface FullSearchProduct {
   id: string;
@@ -63,6 +70,9 @@ export default function FullScreenProductSearch({
   // Holds refs to each visible row's Qty input so arrow-key navigation can focus them directly
   const qtyInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const [query, setQuery] = useState('');
+  // Deferred query keeps typing responsive: the search re-runs slightly after
+  // the keystroke instead of blocking every character on the main thread.
+  const deferredQuery = useDeferredValue(query);
   const [quantities, setQuantities] = useState<Record<string, number | ''>>({});
   const [addedFlash, setAddedFlash] = useState<string | null>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
@@ -70,6 +80,9 @@ export default function FullScreenProductSearch({
   const [selectedForCart, setSelectedForCart] = useState<Set<string>>(new Set());
   // Tracks how often each product has been added — boosts it in search results
   const [frequencyMap, setFrequencyMap] = useState<Record<string, number>>({});
+  // Progressive render: only a slice is mounted at a time so the initial open
+  // and every keystroke stay smooth even with a large catalog.
+  const [visibleCount, setVisibleCount] = useState(INITIAL_RENDER_COUNT);
 
   // Number of products selected for bulk add (declared before the keyboard-shortcut effect below)
   const selectedCount = selectedForCart.size;
@@ -77,8 +90,8 @@ export default function FullScreenProductSearch({
   const q = normalizeTerm(query);
 
   const results = useMemo(
-    () => searchProducts(products, query, MAX_VISIBLE, frequencyMap),
-    [products, query, frequencyMap]
+    () => searchProducts(products, deferredQuery, MAX_VISIBLE, frequencyMap),
+    [products, deferredQuery, frequencyMap]
   );
 
   // Reset + focus search every time the dialog opens
@@ -89,21 +102,33 @@ export default function FullScreenProductSearch({
       setAddedFlash(null);
       setFocusedIndex(-1);
       setSelectedForCart(new Set());
+      setVisibleCount(INITIAL_RENDER_COUNT);
       setTimeout(() => searchRef.current?.focus(), 250);
     }
   }, [open]);
 
-  // Reset highlight when results change
-  useEffect(() => { setFocusedIndex(-1); }, [results.length, q]);
+  // Reset highlight + progressive-render page when results change
+  useEffect(() => {
+    setFocusedIndex(-1);
+    setVisibleCount(INITIAL_RENDER_COUNT);
+  }, [results.length, q]);
 
-  // Drop selections for products that are now in the cart
+  // Drop selections for products that are now in the cart.
+  // Only call setState when something was actually removed; otherwise
+  // return the same `prev` reference so React bails out of the update.
+  // (cartItemIds is recreated by the parent every render, so a fresh Set
+  // returned here would cause an infinite re-render loop.)
   useEffect(() => {
     setSelectedForCart((prev) => {
       const next = new Set(prev);
+      let changed = false;
       for (const id of next) {
-        if (cartItemIds.has(id)) next.delete(id);
+        if (cartItemIds.has(id)) {
+          next.delete(id);
+          changed = true;
+        }
       }
-      return next;
+      return changed ? next : prev;
     });
   }, [cartItemIds]);
 
@@ -130,17 +155,21 @@ export default function FullScreenProductSearch({
     }
   }, [focusedIndex, focusQtyInput]);
 
-  const atMax = cartCount >= maxItems;
+  // When maxItems is a very large number (unlimited mode), treat it as no limit
+  const isUnlimited = maxItems >= Number.MAX_SAFE_INTEGER;
+  const atMax = !isUnlimited && cartCount >= maxItems;
 
-  // Indexes of results that still show a Qty input (i.e. not already in cart)
+  // Indexes of results that still show a Qty input (i.e. not already in cart).
+  // Only counts the progressively-rendered slice so keyboard nav stays in sync
+  // with what's actually on screen.
   const qtyAbleIndexes = useMemo(() => {
-    const maxIdx = Math.min(results.length, MAX_VISIBLE) - 1;
+    const maxIdx = Math.min(results.length, visibleCount) - 1;
     const idxs: number[] = [];
     for (let i = 0; i <= maxIdx; i++) {
       if (!cartItemIds.has(results[i].id)) idxs.push(i);
     }
     return idxs;
-  }, [results, cartItemIds]);
+  }, [results, cartItemIds, visibleCount]);
 
   // Next/prev qty-editable row index (wraps around), or -1 if none exists
   const nextQtyIndex = useCallback((from: number, dir: 1 | -1): number => {
@@ -273,7 +302,7 @@ export default function FullScreenProductSearch({
 
   // Add every selected product (with its entered qty) to the cart in one click
   const handleBulkAdd = () => {
-    const remainingSlots = maxItems - cartCount;
+    const remainingSlots = isUnlimited ? Number.MAX_SAFE_INTEGER : maxItems - cartCount;
     let toAdd = results.filter(p => selectedForCart.has(p.id) && !cartItemIds.has(p.id));
     if (toAdd.length > remainingSlots) toAdd = toAdd.slice(0, remainingSlots);
 
@@ -359,7 +388,7 @@ export default function FullScreenProductSearch({
           </Typography>
           <Badge badgeContent={cartCount} color="primary" showZero>
             <Chip
-              label={`${cartCount}/${maxItems} in cart`}
+              label={isUnlimited ? `${cartCount} in cart` : `${cartCount}/${maxItems} in cart`}
               size="small"
               color={atMax ? 'error' : 'primary'}
               variant="filled"
@@ -489,7 +518,7 @@ export default function FullScreenProductSearch({
           </Box>
         ) : (
           <List disablePadding ref={listRef} role="listbox">
-            {results.slice(0, MAX_VISIBLE).map((product, index) => {
+            {results.slice(0, visibleCount).map((product, index) => {
               const inCart = cartItemIds.has(product.id);
               const stock = stockOf(product);
               const discount = partyDiscounts[product.category ?? ''] || 0;
@@ -630,11 +659,21 @@ export default function FullScreenProductSearch({
                 </ListItem>
               );
             })}
-            {results.length > MAX_VISIBLE && (
+            {results.length > visibleCount && (
               <Box sx={{ py: 3, textAlign: 'center' }}>
-                <Typography variant="caption" color="text.secondary">
-                  Showing first {MAX_VISIBLE} of {results.length} results — refine your search.
-                </Typography>
+                <Button
+                  size="medium"
+                  variant="outlined"
+                  onClick={() => setVisibleCount(prev => Math.min(prev + RENDER_PAGE_SIZE, Math.min(results.length, MAX_VISIBLE)))}
+                  sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2 }}
+                >
+                  Show more ({Math.min(results.length, MAX_VISIBLE) - visibleCount} remaining)
+                </Button>
+                {results.length > MAX_VISIBLE && (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                    Showing first {MAX_VISIBLE} of {results.length} results — refine your search.
+                  </Typography>
+                )}
               </Box>
             )}
           </List>

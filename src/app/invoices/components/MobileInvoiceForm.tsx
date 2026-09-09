@@ -5,7 +5,7 @@ import {
   CircularProgress, Alert, Snackbar, Chip, Divider,
   Autocomplete, Dialog, DialogTitle, DialogContent, DialogActions,
   Badge, Fade, Grow, Avatar,
-  InputAdornment,
+  InputAdornment, Checkbox, FormControlLabel,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -128,6 +128,9 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
   const [pendingQty, setPendingQty] = useState<number | ''>('');
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [isBatchAdding, setIsBatchAdding] = useState(false);
+
+  // Unlimited items mode - when enabled, no max item limit
+  const [unlimitedItems, setUnlimitedItems] = useState<boolean>(false);
 
   const [openPartyDialog, setOpenPartyDialog] = useState(false);
   const [newParty, setNewParty] = useState({
@@ -409,7 +412,7 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
   }, [selectedPartyId, calculateItemDiscounts]);
 
   const triggerQtyPrompt = useCallback((productId: string) => {
-    if (lineItems.length >= 25) { setWarningMessage('Max 25 items per invoice'); return; }
+    if (!unlimitedItems && lineItems.length >= 25) { setWarningMessage('Max 25 items per invoice'); return; }
     const product = products.find(p => p.id === productId);
     if (!product) return;
     const existingIndex = lineItems.findIndex(item => item.productId === productId);
@@ -760,6 +763,22 @@ export default function MobileInvoiceForm({ onSuccess, invoiceId }: MobileInvoic
             <CartIcon sx={{ fontSize: 16, color: palette.accent }} />
             <Typography sx={sectionTitleSx}>Add Products</Typography>
             {lineItems.length > 0 && <Chip label={`${lineItems.length} item${lineItems.length > 1 ? 's' : ''}`} size="small" sx={{ ...styles.chip(palette.primaryLight, palette.primary), height: 20, fontSize: '0.65rem' }} />}
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={unlimitedItems}
+                  onChange={(e) => setUnlimitedItems(e.target.checked)}
+                  size="small"
+                  sx={{ '& .MuiSvgIcon-root': { fontSize: 18 }, p: 0.25 }}
+                />
+              }
+              label={
+                <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.7rem', color: palette.textSecondary }}>
+                  Unlimited
+                </Typography>
+              }
+              sx={{ ml: 0, mr: 0, '& .MuiFormControlLabel-label': { fontSize: '0.7rem' } }}
+            />
           </Box>
           {/* Product search input */}
           <TextField

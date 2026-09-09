@@ -5,7 +5,7 @@ const { getAuth, createUserWithEmailAndPassword } = require('firebase/auth');
 
 // Your Firebase config from src/firebase/config.js
 const firebaseConfig = {
-  apiKey: "AIzaSyC3L0RThSlzlevakOmpOyf66_bZJ-Pkrco",
+   apiKey: "AIzaSyC3L0RThSlzlevakOmpOyf66_bZJ-Pkrco",
   authDomain: "anutecdmindia.firebaseapp.com",
   projectId: "anutecdmindia",
   storageBucket: "anutecdmindia.firebasestorage.app",
@@ -19,10 +19,10 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // Admin user details - CHANGE THESE VALUES
-const adminEmail = "admin@master.com";
-const adminPassword = "Master@123";
+const adminEmail = "prc2199@gmail.com";
+const adminPassword = "prc2199@gmail.com";
 const adminFirstName = "Admin";
-const adminLastName = "Mas";
+const adminLastName = "admin";
 
 async function createAdminUser() {
   try {

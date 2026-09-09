@@ -149,13 +149,13 @@ export default function ClassicInvoiceTemplate({ invoice, settings, previewMode,
         max-width: none;
         margin: 0;
         padding: 0;
-        page-break-inside: avoid;
         margin-top: 0;
         display: flex;
         flex-direction: column;
-        min-height: calc(297mm - 16mm);
-        height: calc(297mm - 16mm);
-        max-height: calc(297mm - 16mm);
+        min-height: auto;
+        height: auto;
+        max-height: none !important;
+        overflow: visible !important;
       }
       
       .tally-border {
@@ -177,17 +177,21 @@ export default function ClassicInvoiceTemplate({ invoice, settings, previewMode,
         border-collapse: collapse;
         width: 100%;
         font-size: 10px;
-        height: 100%;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
       }
       
       .tally-table-container {
         flex: 1;
-        display: flex;
-        flex-direction: column;
+        display: block;
+        overflow: visible !important;
       }
       
       .tally-table tbody {
-        flex: 1;
+        flex: none;
+        display: table-row-group;
+        height: auto !important;
       }
       
       .tally-table th,
@@ -582,7 +586,12 @@ export default function ClassicInvoiceTemplate({ invoice, settings, previewMode,
         display: 'flex',
         flexDirection: 'column',
         boxShadow: previewMode ? '0 4px 20px rgba(0,0,0,0.1)' : 'none',
-        overflow: 'hidden',
+        overflow: 'visible',
+        '@media print': {
+          overflow: 'visible !important',
+          maxHeight: 'none !important',
+          height: 'auto !important'
+        },
         boxSizing: 'border-box'
       }}>
         {/* Dynamic Company Header */}

@@ -3,12 +3,12 @@ import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 
 // Server-side Firebase configuration
 const firebaseConfig = {
- apiKey: "AIzaSyC3L0RThSlzlevakOmpOyf66_bZJ-Pkrco",
-  authDomain: "anutecdmindia.firebaseapp.com",
-  projectId: "anutecdmindia",
-  storageBucket: "anutecdmindia.firebasestorage.app",
-  messagingSenderId: "490380975464",
-  appId: "1:490380975464:web:405bd931a3d63876828add"
+apiKey: "AIzaSyDSu1ErMkJneofYcnDZsewCOI076YPtaaQ",
+authDomain: "hanuman-marketing-kothur.firebaseapp.com",
+projectId: "hanuman-marketing-kothur",
+ storageBucket: "hanuman-marketing-kothur.firebasestorage.app",
+ messagingSenderId: "979647959745",
+ appId: "1:979647959745:web:64960d0af04bcc2e95ba40"
 };
 
 // Initialize Firebase app for server-side use

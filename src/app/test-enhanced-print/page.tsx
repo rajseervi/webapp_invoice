@@ -32,38 +32,56 @@ import { Invoice } from '@/types/invoice_no_gst';
 const mockInvoice: Invoice = {
   id: 'test001',
   invoiceNumber: 'INV-2024-001',
-  invoiceDate: new Date('2024-01-15'),
-  customerName: 'Acme Corporation Ltd.',
-  customerAddress: '123 Business Street\nCommercial District\nCity, State 12345',
-  customerPhone: '+1 (555) 123-4567',
+  date: '2024-01-15',
+  partyName: 'Acme Corporation Ltd.',
+  partyAddress: '123 Business Street\nCommercial District\nCity, State 12345',
+  partyPhone: '+1 (555) 123-4567',
   items: [
     {
       id: '1',
+      productId: 'p1',
+      name: 'Professional Web Development Services',
       description: 'Professional Web Development Services',
       quantity: 40,
-      rate: 125.00,
-      amount: 5000.00
+      price: 125.00,
+      discount: 0,
+      finalPrice: 125.00,
+      totalAmount: 5000.00
     },
     {
       id: '2', 
+      productId: 'p2',
+      name: 'UI/UX Design Consultation',
       description: 'UI/UX Design Consultation',
       quantity: 15,
-      rate: 150.00,
-      amount: 2250.00
+      price: 150.00,
+      discount: 0,
+      finalPrice: 150.00,
+      totalAmount: 2250.00
     },
     {
       id: '3',
+      productId: 'p3',
+      name: 'Technical Documentation',
       description: 'Technical Documentation',
       quantity: 8,
-      rate: 100.00,
-      amount: 800.00
+      price: 100.00,
+      discount: 0,
+      finalPrice: 100.00,
+      totalAmount: 800.00
     }
   ],
   subtotal: 8050.00,
-  total: 8050.00,
+  totalDiscount: 0,
+  totalAmount: 8050.00,
+  paymentStatus: 'paid',
+  paidAmount: 8050.00,
+  balanceAmount: 0,
+  type: 'sales',
+  status: 'confirmed',
   userId: 'test-user',
-  createdAt: new Date('2024-01-15'),
-  updatedAt: new Date('2024-01-15'),
+  createdAt: '2024-01-15',
+  updatedAt: '2024-01-15',
   notes: 'Payment due within 30 days. Thank you for your business!'
 };
 
@@ -296,7 +314,7 @@ export default function TestEnhancedPrintPage() {
           sx={{ 
             position: 'relative',
             width: previewMode ? '8.5in' : '100%',
-            minHeight: previewMode ? '11in' : '100vh',
+            minHeight: previewMode ? '11in' : 'auto',
             bgcolor: 'white',
             transform: previewMode ? `scale(${zoomLevel / 100})` : 'none',
             transformOrigin: 'top center',
@@ -304,8 +322,10 @@ export default function TestEnhancedPrintPage() {
             '@media print': {
               transform: 'none',
               width: '100%',
-              height: '100vh',
-              minHeight: '100vh',
+              height: 'auto',
+              minHeight: 'auto',
+              maxHeight: 'none',
+              overflow: 'visible',
               boxShadow: 'none',
               border: 'none'
             }
@@ -456,12 +476,18 @@ export default function TestEnhancedPrintPage() {
           
           .invoice-print-container {
             width: 100% !important;
-            height: 100vh !important;
+            height: auto !important;
+            min-height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
             padding: 0 !important;
           }
           
           .invoice-copy {
-            height: ${copies === 1 ? '100vh' : 'auto'} !important;
+            height: auto !important;
+            min-height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
             margin-bottom: 0 !important;
           }
           

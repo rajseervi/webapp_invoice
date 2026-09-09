@@ -289,7 +289,8 @@ export default function EnhancedPrintInvoicePage() {
                     mb: 0,
                     pageBreakAfter: isLast ? 'auto' : 'always',
                     border: 'none',
-                    pageBreakInside: 'avoid'
+                    pageBreakInside: 'auto',
+                    overflow: 'visible'
                   }
                 }}
               >
