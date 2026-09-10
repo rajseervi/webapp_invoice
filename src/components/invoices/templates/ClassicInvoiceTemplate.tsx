@@ -668,7 +668,7 @@ export default function ClassicInvoiceTemplate({ invoice, settings, previewMode,
   const renderItemRow = (item: any, index: number, isLastPageOfAll: boolean) => (
     <TableRow key={index} sx={{
       height: 'auto',
-      borderBottom: isLastPageOfAll && index === totalItems - 1 ? '2px solid #000' : 'none',
+      borderBottom: isLastPageOfAll && index === totalItems - 1 ? '0px solid #000' : 'none',
     }}>
       <TableCell className="center-cell" sx={{
         border: 'none',
